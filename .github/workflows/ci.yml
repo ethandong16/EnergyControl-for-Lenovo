@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    name: Compile and smoke test
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Restore Newtonsoft.Json
+        shell: pwsh
+        run: >-
+          nuget install Newtonsoft.Json
+          -Version 13.0.3
+          -OutputDirectory packages
+          -NonInteractive
+          -DirectDownload
+
+      - name: Compile CLI and GUI
+        shell: pwsh
+        run: .\build-ci.ps1 -Clean
+
+      - name: Run CLI smoke tests
+        shell: pwsh
+        run: |
+          .\ci-bin\LenovoSettingsDemo.exe help
+          if ($LASTEXITCODE -ne 0) {
+              throw "CLI help smoke test failed with exit code $LASTEXITCODE"
+          }
+
+          $env:LENOVO_SETTINGS_ADDIN_PATH = Join-Path $PWD '.ci-missing-addin'
+          .\ci-bin\LenovoSettingsDemo.exe diagnose
+          if ($LASTEXITCODE -ne 1) {
+              throw "Missing-Addin fallback returned $LASTEXITCODE; expected 1"
+          }
+
+      - name: Publish compiler logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: compiler-logs
+          path: ci-bin/*.log
+          if-no-files-found: ignore
+          retention-days: 7

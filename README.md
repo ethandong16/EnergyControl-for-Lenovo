@@ -62,3 +62,10 @@ CLI 写操作必须显式添加 `--apply`。完整接口说明见
 ```
 
 验证脚本覆盖常见窗口宽度、150%/200% DPI、能力别名、响应降级和真实设备只读状态。
+
+## 持续集成
+
+GitHub Actions 会在 `main` 推送、Pull Request 和手动触发时，在 Windows Runner 上
+自动编译 CLI 与 GUI，并测试无 Lenovo Addin 时的安全降级路径。由于 Lenovo Contract
+DLL 是本机闭源组件，CI 使用 `ci/` 中的最小类型签名桩进行编译验证，不生成可分发的
+运行包。部署版本请在目标 Lenovo 电脑上运行 `build.ps1` 构建。

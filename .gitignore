@@ -1,5 +1,7 @@
 # Build output contains Lenovo proprietary binaries copied from the local installation.
 bin/
+ci-bin/
+packages/
 
 # Generated layout snapshots
 layout-*.png
