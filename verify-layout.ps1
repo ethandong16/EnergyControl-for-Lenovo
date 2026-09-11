@@ -1,0 +1,152 @@
+﻿param([switch]$LiveRead)
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+[System.Windows.Forms.Application]::EnableVisualStyles()
+$projectDir = $PSScriptRoot
+$asm = [Reflection.Assembly]::LoadFrom((Join-Path $projectDir 'bin\LenovoSettingsGui.exe'))
+$flags = [Reflection.BindingFlags]'Instance,NonPublic,Public'
+$allFlags = [Reflection.BindingFlags]'Static,Instance,NonPublic,Public'
+$formType = $asm.GetType('LenovoSettingsGui.MainForm', $true)
+$stateType = $asm.GetType('LenovoSettingsGui.DeviceState', $true)
+$state = [Activator]::CreateInstance($stateType, $true)
+$sample = @{
+    ChargeMode='Normal'; SupportedChargeModes='Normal,Storage,Quick'
+    PerformanceMode='MMC_Performance'
+    SupportedPerformanceModes='MMC_Auto,MMC_Cool,MMC_Performance,MMC_Geek'
+        WorkingDriver='dispatcher'; ErrorCode='0'
+        ShowGeekAsCreator='False'; ShowBsmAsQuietBsm='False'; IsGeekOptionGrey='False'
+        ChargeWritable=$true; PerformanceWritable=$true
+}
+foreach ($key in $sample.Keys) { $stateType.GetField($key,$flags).SetValue($state,$sample[$key]) }
+$capabilityType = $asm.GetType('LenovoSettingsCompat.CapabilityNames', $true)
+$matchesMethod = $capabilityType.GetMethod('Matches', $allFlags)
+$splitMethod = $capabilityType.GetMethod('Split', $allFlags)
+$responseType = $asm.GetType('LenovoSettingsCompat.AddinResponse', $true)
+$toObjectMethod = $responseType.GetMethod('ToObject', $allFlags)
+if (-not $matchesMethod.Invoke($null, [object[]]@('ITS_Auto;Balanced|MMC_Cool', [string[]]@('Auto','ITS_Auto')))) {
+    throw 'Capability aliases/separators are not recognized'
+}
+if (@($splitMethod.Invoke($null, [object[]]@('Normal;Storage|Quick'))).Count -ne 3) {
+    throw 'Capability separator parsing failed'
+}
+if ($toObjectMethod.Invoke($null, [object[]]@('not-json')).HasValues) {
+    throw 'Malformed Addin responses must degrade to an empty object'
+}
+if ($LiveRead) {
+    $cli = Join-Path $projectDir 'bin\LenovoSettingsDemo.exe'
+    $charge = (& $cli charge get | Out-String | ConvertFrom-Json)
+    if ($LASTEXITCODE -ne 0) { throw 'Charge getter failed' }
+    $power = (& $cli performance get | Out-String | ConvertFrom-Json)
+    if ($LASTEXITCODE -ne 0) { throw 'Performance getter failed' }
+    $settings = @{}
+    foreach ($item in @($charge.settingList) + @($power.settingList)) {
+        $settings[$item.key] = $item.value
+    }
+    $mapping = @{
+        ChargeMode='BatteryChargeMode'; SupportedChargeModes='Supported-BatteryChargeMode'
+        PerformanceMode='ITSMode'; SupportedPerformanceModes='Supported-ITSMode'
+        WorkingDriver='WorkingDriver'; ShowGeekAsCreator='ShowGeekAsCreator'
+        ErrorCode='ErrorCode'
+    }
+    foreach ($key in $mapping.Keys) {
+        $stateType.GetField($key,$flags).SetValue($state,$settings[$mapping[$key]])
+    }
+}
+function LayoutTree([System.Windows.Forms.Control]$control) {
+    $control.PerformLayout()
+    foreach ($child in $control.Controls) { LayoutTree $child }
+    $control.PerformLayout()
+}
+function GetFontSnapshot([System.Windows.Forms.Control]$control) {
+    [PSCustomObject]@{ Control=$control; Font=$control.Font }
+    foreach ($child in $control.Controls) { GetFontSnapshot $child }
+}
+function CheckTree([System.Windows.Forms.Control]$control) {
+    foreach ($child in $control.Controls) {
+        if (-not $control.ClientRectangle.Contains($child.Bounds) -and
+            -not $control.AutoScroll) {
+            throw ("Clipped control: '{0}', bounds {1}, parent {2}" -f $child.Text,$child.Bounds,$control.ClientRectangle)
+        }
+        if ($child -is [System.Windows.Forms.Label] -and $child.Text) {
+            $preferred = $child.GetPreferredSize([Drawing.Size]::new($child.Width,0))
+            if ($preferred.Height -gt $child.Height) {
+                throw ("Clipped label: " + $child.Text)
+            }
+        }
+        CheckTree $child
+    }
+    $children = @($control.Controls)
+    for ($i=0; $i -lt $children.Count; $i++) {
+        for ($j=$i+1; $j -lt $children.Count; $j++) {
+            if ($children[$i].Bounds.IntersectsWith($children[$j].Bounds)) {
+                throw ("Overlap in {0} {1}: {2} '{3}' {4}; {5} '{6}' {7}" -f
+                    $control.GetType().Name,$control.ClientSize,
+                    $children[$i].GetType().Name,$children[$i].Text,$children[$i].Bounds,
+                    $children[$j].GetType().Name,$children[$j].Text,$children[$j].Bounds)
+            }
+        }
+    }
+}
+$scenarios = @(
+    @{Name='default'; Width=640; Height=540; Scale=1.0}
+    @{Name='narrow'; Width=560; Height=540; Scale=1.0}
+    @{Name='wide'; Width=860; Height=540; Scale=1.0}
+    @{Name='150-percent'; Width=640; Height=540; Scale=1.5}
+    @{Name='200-percent'; Width=560; Height=540; Scale=2.0}
+)
+foreach ($scenario in $scenarios) {
+    $form = [Activator]::CreateInstance($formType,$true)
+    try {
+        # Remove the hardware callback before showing the form for rendering.
+        $eventList = [System.ComponentModel.Component].GetProperty('Events',$flags).GetValue($form,$null)
+        $shownKey = [System.Windows.Forms.Form].GetField('s_shownEvent',[Reflection.BindingFlags]'NonPublic,Static').GetValue($null)
+        $eventList.RemoveHandler($shownKey,$eventList[$shownKey])
+        $form.ShowInTaskbar = $false
+        $form.Opacity = 0
+        $formType.GetMethod('DisplayState',$flags).Invoke($form,@($state)) | Out-Null
+        $formType.GetMethod('SetBusy',$flags).Invoke($form,@($false,$null)) | Out-Null
+        $formType.GetMethod('SetStatus',$flags).Invoke($form,@('读取成功',[Drawing.Color]::SeaGreen)) | Out-Null
+        $form.ClientSize = [Drawing.Size]::new($scenario.Width,$scenario.Height)
+        if ($scenario.Scale -ne 1.0) {
+            $fontSnapshot = @(GetFontSnapshot $form)
+            $form.Scale([Drawing.SizeF]::new($scenario.Scale,$scenario.Scale))
+            foreach ($entry in $fontSnapshot) {
+                $entry.Control.Font = [Drawing.Font]::new(
+                    $entry.Font.FontFamily,
+                    [single]($entry.Font.Size * $scenario.Scale),
+                    $entry.Font.Style)
+            }
+        }
+        LayoutTree $form
+        $windowHandle = $form.Handle
+        $form.Show()
+        [System.Windows.Forms.Application]::DoEvents()
+        LayoutTree $form
+        $bitmap = [Drawing.Bitmap]::new($form.Width,$form.Height)
+        try {
+            $form.DrawToBitmap($bitmap,[Drawing.Rectangle]::new(0,0,$form.Width,$form.Height))
+            LayoutTree $form
+            CheckTree $form
+            $bitmap.Save((Join-Path $projectDir ('layout-'+$scenario.Name+'.png')),[Drawing.Imaging.ImageFormat]::Png)
+            $chargePanel = $formType.GetField('chargeModes',$flags).GetValue($form)
+            $performancePanel = $formType.GetField('performanceModes',$flags).GetValue($form)
+            if ($chargePanel.Controls.Count -ne 3) {
+                throw ("Expected 3 charging modes, found " + $chargePanel.Controls.Count)
+            }
+            if ($performancePanel.Controls.Count -ne 4) {
+                throw ("Expected 4 supported performance modes, found " + $performancePanel.Controls.Count)
+            }
+            foreach ($panel in @($chargePanel,$performancePanel)) {
+                if ($panel.AutoScroll) { throw 'Mode panel must not scroll' }
+                foreach ($button in $panel.Controls) {
+                    if (-not $panel.ClientRectangle.Contains($button.Bounds)) {
+                        throw ("Mode button clipped: {0}, bounds {1}, panel {2}" -f
+                            $button.Text,$button.Bounds,$panel.ClientRectangle)
+                    }
+                }
+            }
+            Write-Output ($scenario.Name + ': PASS ' + $form.ClientSize)
+        } finally { $bitmap.Dispose() }
+    } finally { $form.Dispose() }
+}

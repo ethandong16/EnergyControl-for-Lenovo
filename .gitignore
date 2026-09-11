@@ -1,0 +1,13 @@
+# Build output contains Lenovo proprietary binaries copied from the local installation.
+bin/
+
+# Generated layout snapshots
+layout-*.png
+
+# Local tooling and editor state
+.vs/
+.vscode/
+*.user
+*.suo
+*.tmp
+*.log
