@@ -42,9 +42,11 @@ jobs:
 
           $env:LENOVO_SETTINGS_ADDIN_PATH = Join-Path $PWD '.ci-missing-addin'
           .\ci-bin\LenovoSettingsDemo.exe diagnose
-          if ($LASTEXITCODE -ne 1) {
-              throw "Missing-Addin fallback returned $LASTEXITCODE; expected 1"
+          $diagnoseExit = $LASTEXITCODE
+          if ($diagnoseExit -ne 1) {
+              throw "Missing-Addin fallback returned $diagnoseExit; expected 1"
           }
+          $global:LASTEXITCODE = 0
 
       - name: Publish compiler logs
         if: always()
