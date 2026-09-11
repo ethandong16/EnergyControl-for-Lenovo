@@ -1,5 +1,7 @@
 # Lenovo Settings Demo
 
+[![CI](https://github.com/ethandong16/LenovoSettingsDemo/actions/workflows/ci.yml/badge.svg)](https://github.com/ethandong16/LenovoSettingsDemo/actions/workflows/ci.yml)
+
 一个 Windows/.NET Framework 演示程序，通过本机已安装的 Lenovo Vantage 或联想百应
 `IdeaNotebookAddin`，读取和设置设备报告支持的充电模式与性能模式。
 
