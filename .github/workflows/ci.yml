@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "codex/**"]
   pull_request:
   workflow_dispatch:
 
@@ -10,49 +10,43 @@ permissions:
   contents: read
 
 jobs:
-  compile:
-    name: Compile and smoke test
+  verify:
+    name: Restore, build, test, and layout verify
     runs-on: windows-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
 
-      - name: Restore Newtonsoft.Json
+      - name: Restore public reference assemblies
         shell: pwsh
-        run: >-
-          nuget install Newtonsoft.Json
-          -Version 13.0.3
-          -OutputDirectory packages
-          -NonInteractive
-          -DirectDownload
+        run: dotnet restore .\EnergyControl.csproj --configfile .\NuGet.Config --nologo
 
-      - name: Compile CLI and GUI
+      - name: Build portable executable
         shell: pwsh
         run: .\build-ci.ps1 -Clean
 
-      - name: Run CLI smoke tests
+      - name: Run protocol and dependency tests
+        shell: pwsh
+        run: .\tests\run-tests.ps1 -Executable .\bin\Release\net48\EnergyControl.exe
+
+      - name: Run CLI smoke test
         shell: pwsh
         run: |
-          .\ci-bin\LenovoSettingsDemo.exe help
-          if ($LASTEXITCODE -ne 0) {
-              throw "CLI help smoke test failed with exit code $LASTEXITCODE"
-          }
+          .\bin\Release\net48\EnergyControl.exe help
+          if ($LASTEXITCODE -ne 0) { throw "CLI help failed with exit code $LASTEXITCODE" }
 
-          $env:LENOVO_SETTINGS_ADDIN_PATH = Join-Path $PWD '.ci-missing-addin'
-          .\ci-bin\LenovoSettingsDemo.exe diagnose
-          $diagnoseExit = $LASTEXITCODE
-          if ($diagnoseExit -ne 1) {
-              throw "Missing-Addin fallback returned $diagnoseExit; expected 1"
-          }
-          $global:LASTEXITCODE = 0
+      - name: Run GUI DPI and threshold layout tests
+        shell: pwsh
+        run: .\verify-layout.ps1
 
-      - name: Publish compiler logs
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: compiler-logs
-          path: ci-bin/*.log
-          if-no-files-found: ignore
-          retention-days: 7
+      - name: Scan final executable dependencies
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path .\bin\Release\net48\EnergyControl.exe
+          $assembly = [Reflection.Assembly]::LoadFile($exe.Path)
+          $names = @($assembly.GetReferencedAssemblies() | ForEach-Object Name)
+          foreach ($forbidden in @('Newtonsoft.Json','BatteryManagementContract','PowerContract','IdeaNotebookAddin','Lenovo.Vantage.PowerRpcClient')) {
+            if ($names -contains $forbidden) { throw "Forbidden reference: $forbidden" }
+          }

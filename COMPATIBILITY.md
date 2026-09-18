@@ -1,4 +1,8 @@
-# 联想产品线兼容性调查
+# EnergyControl for Lenovo 兼容性调查
+
+EnergyControl for Lenovo `v0.1.0-preview.1` 是非官方工具。直接充电后端是稳定路径；
+Addin、性能和自定义百分比阈值是实验路径。程序不会打包或分发 Lenovo 私有 DLL，
+可选组件只从用户自己的系统运行时加载。
 
 ## 结论
 
@@ -61,9 +65,10 @@ ErrorCode                    = 0
 `Supported-*` 中找到匹配能力。未知能力会在“支持”一行以“其他”显示，但不会生成
 可写按钮。
 
-## 本次兼容性改动
+## 正式版兼容性策略
 
-1. Addin 先从程序目录加载；目录没有时再定位
+1. Addin 只作为运行时可选后端；程序目录、环境变量和系统安装目录都不会进入发布 ZIP。
+   目录没有时再定位
    `%ProgramData%\Lenovo\Vantage\Addins\IdeaNotebookAddin` 下的最高版本，避免把
    安装位置写死在构建环境中。
 2. GUI 对充电和性能分别读取。台式机无电池、缺失驱动或某个接口不存在时，另一项
@@ -76,17 +81,21 @@ ErrorCode                    = 0
    方法是否存在，便于区分“非联想设备、组件未安装、位数不匹配、驱动不支持”。
 7. Addin 响应缺少 `settingList`、`ToJson` 形态变化或返回非 JSON 时，读取路径不会
    因为解析异常而误判为支持。
+8. 自定义充电阈值通过 Power RPC 独立读取；服务未运行、客户端缺失或固件不支持时，
+   只将阈值卡片标记为不可用，不影响充电模式和性能模式。
+9. 充电模式优先使用 `EnergyDrv` 直接后端；其协议与任意百分比阈值接口相互独立。
+   未报告固定 80% 能力位时，界面只显示“固件预设”，不猜测实际停充百分比。
 
 ## 验证方式与边界
 
 ```powershell
-.\bin\LenovoSettingsDemo.exe diagnose
-.\bin\LenovoSettingsDemo.exe status
+.\bin\Release\net48\EnergyControl.exe diagnose
+.\bin\Release\net48\EnergyControl.exe status
 .\verify-layout.ps1
 ```
 
 `verify-layout.ps1` 已覆盖默认、窄窗口、宽窗口、150% 和 200% DPI，并验证能力
-别名及多种分隔符。当前 Demo 仍依赖 Lenovo 私有 Addin，而不是公开稳定 SDK；
+别名及多种分隔符。当前实验功能仍依赖用户系统中的 Lenovo 私有 Addin，而不是公开稳定 SDK；
 Addin、BIOS 或驱动升级后应重新运行 `diagnose`/`status`。在没有真实硬件的环境中，
 只能验证加载、解析和降级逻辑，不能替代各产品线的硬件回归测试。
 

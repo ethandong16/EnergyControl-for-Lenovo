@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Management;
 using System.Reflection;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
+using System.Collections;
+using System.Globalization;
+using System.Text;
+using System.Web.Script.Serialization;
 
 namespace LenovoSettingsCompat
 {
@@ -160,26 +162,31 @@ namespace LenovoSettingsCompat
 
     internal static class AddinResponse
     {
+        private static readonly JavaScriptSerializer Serializer = new JavaScriptSerializer();
+
         public static string ReadSetting(object response, params string[] keys)
         {
             if (response == null || keys == null || keys.Length == 0) return null;
-            JObject root = ToObject(response);
-            JArray settings = root["settingList"] as JArray;
-            if (settings == null) return null;
-            foreach (JToken setting in settings)
+            IDictionary<string, object> root = ToDictionary(response);
+            object rawSettings;
+            if (!TryGet(root, "settingList", out rawSettings)) return null;
+            IEnumerable settings = rawSettings as IEnumerable;
+            if (settings == null || rawSettings is string) return null;
+            foreach (object item in settings)
             {
-                string key = setting["key"] == null ? null : (string)setting["key"];
+                IDictionary<string, object> setting = item as IDictionary<string, object>;
+                if (setting == null) continue;
+                object rawKey;
+                if (!TryGet(setting, "key", out rawKey)) continue;
+                string key = Convert.ToString(rawKey, CultureInfo.InvariantCulture);
                 foreach (string expected in keys)
                 {
-                    if (String.Equals(key, expected, StringComparison.OrdinalIgnoreCase))
-                    {
-                        JToken value = setting["value"];
-                        return value == null || value.Type == JTokenType.Null
-                            ? null
-                            : value.Type == JTokenType.String
-                                ? (string)value
-                                : value.ToString(Formatting.None);
-                    }
+                    if (!String.Equals(key, expected, StringComparison.OrdinalIgnoreCase)) continue;
+                    object value;
+                    if (!TryGet(setting, "value", out value) || value == null) return null;
+                    return value is string
+                        ? (string)value
+                        : Serializer.Serialize(value);
                 }
             }
             return null;
@@ -208,24 +215,120 @@ namespace LenovoSettingsCompat
                 null,
                 Type.EmptyTypes,
                 null);
-            return toJson == null
-                ? JsonConvert.SerializeObject(response)
-                : (string)toJson.Invoke(response, null);
+            if (toJson != null)
+            {
+                try
+                {
+                    object value = toJson.Invoke(response, null);
+                    if (value is string && !String.IsNullOrWhiteSpace((string)value))
+                        return (string)value;
+                }
+                catch
+                {
+                    // Fall through to serializer for malformed optional clients.
+                }
+            }
+            try
+            {
+                return Serializer.Serialize(response);
+            }
+            catch
+            {
+                return "null";
+            }
         }
 
-        public static JObject ToObject(object response)
+        public static IDictionary<string, object> ToDictionary(object response)
         {
             string json = ToJson(response);
             if (String.IsNullOrWhiteSpace(json) || String.Equals(json, "null", StringComparison.OrdinalIgnoreCase))
-                return new JObject();
+                return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
             try
             {
-                return JObject.Parse(json);
+                object value = Serializer.DeserializeObject(json);
+                IDictionary<string, object> dictionary = value as IDictionary<string, object>;
+                return dictionary ?? new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
             }
-            catch (JsonException)
+            catch
             {
-                return new JObject();
+                return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
             }
+        }
+
+        private static bool TryGet(IDictionary<string, object> dictionary, string key, out object value)
+        {
+            if (dictionary.TryGetValue(key, out value)) return true;
+            foreach (KeyValuePair<string, object> item in dictionary)
+            {
+                if (String.Equals(item.Key, key, StringComparison.OrdinalIgnoreCase))
+                {
+                    value = item.Value;
+                    return true;
+                }
+            }
+            value = null;
+            return false;
+        }
+    }
+
+    internal static class JsonSupport
+    {
+        private static readonly JavaScriptSerializer Serializer = new JavaScriptSerializer();
+
+        public static string Serialize(object value, bool indented)
+        {
+            string json = Serializer.Serialize(value);
+            return indented ? PrettyPrint(json) : json;
+        }
+
+        public static object Deserialize(string json)
+        {
+            return Serializer.DeserializeObject(json);
+        }
+
+        private static string PrettyPrint(string json)
+        {
+            if (String.IsNullOrWhiteSpace(json)) return json;
+            var builder = new StringBuilder(json.Length + 32);
+            bool quoted = false;
+            bool escaped = false;
+            int depth = 0;
+            for (int index = 0; index < json.Length; index++)
+            {
+                char c = json[index];
+                if (quoted)
+                {
+                    builder.Append(c);
+                    if (escaped) escaped = false;
+                    else if (c == '\\') escaped = true;
+                    else if (c == '"') quoted = false;
+                    continue;
+                }
+                if (c == '"') { quoted = true; builder.Append(c); continue; }
+                if (Char.IsWhiteSpace(c)) continue;
+                if (c == '{' || c == '[')
+                {
+                    builder.Append(c).AppendLine();
+                    depth++;
+                    AppendIndent(builder, depth);
+                }
+                else if (c == '}' || c == ']')
+                {
+                    builder.AppendLine();
+                    depth = Math.Max(0, depth - 1);
+                    AppendIndent(builder, depth);
+                    builder.Append(c);
+                }
+                else if (c == ',') builder.Append(c).AppendLine().Append(new string(' ', depth * 2));
+                else if (c == ':') builder.Append(": ");
+                else builder.Append(c);
+            }
+            return builder.ToString();
+        }
+
+        private static void AppendIndent(StringBuilder builder, int depth)
+        {
+            builder.Append(new string(' ', depth * 2));
         }
     }
 

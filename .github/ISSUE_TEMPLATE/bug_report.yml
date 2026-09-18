@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a reproducible problem without attaching private Lenovo binaries.
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please remove serial numbers, account data, private DLLs, and personal logs.
+  - type: input
+    id: version
+    attributes:
+      label: EnergyControl version
+      placeholder: v0.1.0-preview.1
+    validations:
+      required: true
+  - type: input
+    id: model
+    attributes:
+      label: Lenovo model and Windows version
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Read-only diagnostics
+      description: Paste `EnergyControl.exe diagnose` output, redacted as needed.
+    validations:
+      required: false

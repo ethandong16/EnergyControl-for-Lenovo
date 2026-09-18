@@ -4,7 +4,11 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 $projectDir = $PSScriptRoot
-$asm = [Reflection.Assembly]::LoadFrom((Join-Path $projectDir 'bin\LenovoSettingsGui.exe'))
+$exePath = Join-Path $projectDir 'bin\Release\net48\EnergyControl.exe'
+if (-not (Test-Path -LiteralPath $exePath)) {
+    $exePath = Join-Path $projectDir 'artifacts\publish\EnergyControl.exe'
+}
+$asm = [Reflection.Assembly]::LoadFrom($exePath)
 $flags = [Reflection.BindingFlags]'Instance,NonPublic,Public'
 $allFlags = [Reflection.BindingFlags]'Static,Instance,NonPublic,Public'
 $formType = $asm.GetType('LenovoSettingsGui.MainForm', $true)
@@ -12,29 +16,65 @@ $stateType = $asm.GetType('LenovoSettingsGui.DeviceState', $true)
 $state = [Activator]::CreateInstance($stateType, $true)
 $sample = @{
     ChargeMode='Normal'; SupportedChargeModes='Normal,Storage,Quick'
+    ChargeBackend='直接驱动'; ChargeLimitInfo='固件预设（未报告固定 80% 能力）'
     PerformanceMode='MMC_Performance'
     SupportedPerformanceModes='MMC_Auto,MMC_Cool,MMC_Performance,MMC_Geek'
         WorkingDriver='dispatcher'; ErrorCode='0'
         ShowGeekAsCreator='False'; ShowBsmAsQuietBsm='False'; IsGeekOptionGrey='False'
         ChargeWritable=$true; PerformanceWritable=$true
+        ThresholdCapable=$true; ThresholdEnabled=$true; ThresholdWritable=$true
+        ThresholdStart=75; ThresholdStop=80
 }
+
+# An unavailable percentage API must collapse its editor instead of leaving
+# misleading default 75/80 values visible.
+$unavailableForm = [Activator]::CreateInstance($formType,$true)
+try {
+    $unavailableState = [Activator]::CreateInstance($stateType,$true)
+    foreach ($key in $sample.Keys) {
+        $stateType.GetField($key,$flags).SetValue($unavailableState,$sample[$key])
+    }
+    $stateType.GetField('ThresholdCapable',$flags).SetValue($unavailableState,$false)
+    $stateType.GetField('ThresholdWritable',$flags).SetValue($unavailableState,$false)
+    $stateType.GetField('ThresholdError',$flags).SetValue(
+        $unavailableState,'初始化充电阈值接口失败：RPC 服务未运行')
+    $formType.GetMethod('DisplayState',$flags).Invoke(
+        $unavailableForm,@($unavailableState)) | Out-Null
+    $unavailableThreshold = $formType.GetField(
+        'thresholdControls',$flags).GetValue($unavailableForm)
+    if ($unavailableThreshold.Visible) {
+        throw 'Unavailable threshold editor must be collapsed'
+    }
+} finally { $unavailableForm.Dispose() }
 foreach ($key in $sample.Keys) { $stateType.GetField($key,$flags).SetValue($state,$sample[$key]) }
 $capabilityType = $asm.GetType('LenovoSettingsCompat.CapabilityNames', $true)
 $matchesMethod = $capabilityType.GetMethod('Matches', $allFlags)
 $splitMethod = $capabilityType.GetMethod('Split', $allFlags)
 $responseType = $asm.GetType('LenovoSettingsCompat.AddinResponse', $true)
-$toObjectMethod = $responseType.GetMethod('ToObject', $allFlags)
+$toDictionaryMethod = $responseType.GetMethod('ToDictionary', $allFlags)
+$thresholdClientType = $asm.GetType('LenovoSettingsCompat.ChargeThresholdClient', $true)
+$validateThresholdMethod = $thresholdClientType.GetMethod('ValidateValues', $allFlags)
 if (-not $matchesMethod.Invoke($null, [object[]]@('ITS_Auto;Balanced|MMC_Cool', [string[]]@('Auto','ITS_Auto')))) {
     throw 'Capability aliases/separators are not recognized'
 }
 if (@($splitMethod.Invoke($null, [object[]]@('Normal;Storage|Quick'))).Count -ne 3) {
     throw 'Capability separator parsing failed'
 }
-if ($toObjectMethod.Invoke($null, [object[]]@('not-json')).HasValues) {
+if ($toDictionaryMethod.Invoke($null, [object[]]@('not-json')).Count -ne 0) {
     throw 'Malformed Addin responses must degrade to an empty object'
 }
+$validateThresholdMethod.Invoke($null, [object[]]@(75,80)) | Out-Null
+$invalidThresholdRejected = $false
+try {
+    $validateThresholdMethod.Invoke($null, [object[]]@(80,75)) | Out-Null
+} catch {
+    $invalidThresholdRejected = $true
+}
+if (-not $invalidThresholdRejected) {
+    throw 'Invalid charge threshold order was accepted'
+}
 if ($LiveRead) {
-    $cli = Join-Path $projectDir 'bin\LenovoSettingsDemo.exe'
+    $cli = $exePath
     $charge = (& $cli charge get | Out-String | ConvertFrom-Json)
     if ($LASTEXITCODE -ne 0) { throw 'Charge getter failed' }
     $power = (& $cli performance get | Out-String | ConvertFrom-Json)
@@ -99,9 +139,13 @@ foreach ($scenario in $scenarios) {
     $form = [Activator]::CreateInstance($formType,$true)
     try {
         # Remove the hardware callback before showing the form for rendering.
+        $formType.GetMethod('DisableInitialRefresh',$flags).Invoke($form,$null) | Out-Null
         $eventList = [System.ComponentModel.Component].GetProperty('Events',$flags).GetValue($form,$null)
-        $shownKey = [System.Windows.Forms.Form].GetField('s_shownEvent',[Reflection.BindingFlags]'NonPublic,Static').GetValue($null)
-        $eventList.RemoveHandler($shownKey,$eventList[$shownKey])
+        $shownField = [System.Windows.Forms.Form].GetField('s_shownEvent',[Reflection.BindingFlags]'NonPublic,Static')
+        if ($shownField) {
+            $shownKey = $shownField.GetValue($null)
+            if ($eventList[$shownKey]) { $eventList.RemoveHandler($shownKey,$eventList[$shownKey]) }
+        }
         $form.ShowInTaskbar = $false
         $form.Opacity = 0
         $formType.GetMethod('DisplayState',$flags).Invoke($form,@($state)) | Out-Null
@@ -130,12 +174,16 @@ foreach ($scenario in $scenarios) {
             CheckTree $form
             $bitmap.Save((Join-Path $projectDir ('layout-'+$scenario.Name+'.png')),[Drawing.Imaging.ImageFormat]::Png)
             $chargePanel = $formType.GetField('chargeModes',$flags).GetValue($form)
+            $thresholdPanel = $formType.GetField('thresholdControls',$flags).GetValue($form)
             $performancePanel = $formType.GetField('performanceModes',$flags).GetValue($form)
             if ($chargePanel.Controls.Count -ne 3) {
                 throw ("Expected 3 charging modes, found " + $chargePanel.Controls.Count)
             }
             if ($performancePanel.Controls.Count -ne 4) {
                 throw ("Expected 4 supported performance modes, found " + $performancePanel.Controls.Count)
+            }
+            if (-not $thresholdPanel.Enabled -or $thresholdPanel.Controls.Count -ne 6) {
+                throw 'Charge threshold controls are unavailable or incomplete'
             }
             foreach ($panel in @($chargePanel,$performancePanel)) {
                 if ($panel.AutoScroll) { throw 'Mode panel must not scroll' }

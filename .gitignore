@@ -1,12 +1,18 @@
-# Build output contains Lenovo proprietary binaries copied from the local installation.
+# Build output and local restore state.
 bin/
 ci-bin/
 packages/
+artifacts/
+obj/
+release-stage/
+EnergyControl-for-Lenovo-*.zip
+EnergyControl-for-Lenovo-*.zip.sha256
 
 # Generated layout snapshots
 layout-*.png
 
 # Local tooling and editor state
+.tools/
 .vs/
 .vscode/
 *.user
