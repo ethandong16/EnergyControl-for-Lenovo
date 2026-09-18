@@ -1,36 +1,37 @@
 # EnergyControl for Lenovo
 
+English | [简体中文](README.zh-CN.md)
+
 [![CI](https://github.com/ethandong16/EnergyControl-for-Lenovo/actions/workflows/ci.yml/badge.svg)](https://github.com/ethandong16/EnergyControl-for-Lenovo/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/ethandong16/EnergyControl-for-Lenovo?include_prereleases)](https://github.com/ethandong16/EnergyControl-for-Lenovo/releases)
+[![License](https://img.shields.io/github/license/ethandong16/EnergyControl-for-Lenovo)](LICENSE)
 
-EnergyControl for Lenovo is an unofficial, community-maintained Windows utility for reading and controlling charging modes on compatible Lenovo systems. The first public build is `v0.1.0-preview.1`.
+EnergyControl for Lenovo is an unofficial, community-maintained Windows utility for reading and controlling charging modes on compatible Lenovo systems. The current public preview is `v0.1.0-preview.1`.
 
-EnergyControl for Lenovo 是一个非联想官方的 Windows 社区工具，用于读取和控制兼容联想设备的充电模式。首个公开版本为 `v0.1.0-preview.1`。
+## Features
 
-## Features / 功能
+- **Stable:** direct charging control through the installed Windows driver (`EnergyDrv`).
+- **Experimental:** performance modes and custom start/stop percentage thresholds.
+- A single portable `EnergyControl.exe`: double-click it for the GUI or pass arguments for CLI mode.
+- No telemetry, background service, installer, automatic updater, or startup task.
+- Lenovo Vantage and Commercial Vantage components are optional runtime integrations only.
+- No Lenovo private DLL is committed to the repository or included in a release package.
 
-- Stable / 稳定：direct charging control through the installed Windows driver (`EnergyDrv`).
-- Experimental / 实验：performance modes and custom start/stop percentage thresholds.
-- One portable `EnergyControl.exe`; double-click opens the GUI, command-line arguments enable CLI mode.
-- No telemetry, background service, installer, auto-update, or startup task.
-- Lenovo Vantage / Commercial Vantage components are optional runtime integrations only.
+## Download
 
-直接驱动充电控制标记为稳定功能；性能控制和自定义百分比阈值属于实验功能。程序不包含 Lenovo 私有 DLL，也不会把它们复制到发布包中。
+Download the unsigned Windows x64 preview ZIP from the [Releases](https://github.com/ethandong16/EnergyControl-for-Lenovo/releases) page and verify its accompanying `.sha256` file before running it.
 
-## Download / 下载
+The preview is not code-signed, so Windows SmartScreen may display a warning.
 
-Download the unsigned preview ZIP from the [Releases](https://github.com/ethandong16/EnergyControl-for-Lenovo/releases) page. Verify the accompanying `.sha256` file before running it.
-
-预览版未签名，Windows SmartScreen 可能会显示警告。请只从 Release 页面下载，并使用随包提供的 SHA-256 校验文件核验。
-
-## Requirements / 系统要求
+## Requirements
 
 - Windows 10 or Windows 11, x64.
-- The system's built-in .NET Framework 4.8 runtime.
-- A compatible Lenovo charging driver for direct control. Non-Lenovo systems remain read-only/unsupported.
+- The system-provided .NET Framework 4.8 runtime.
+- A compatible Lenovo charging driver for direct control. Non-Lenovo and unsupported systems safely report the feature as unavailable.
 
-## Usage / 使用
+## Usage
 
-Double-click `EnergyControl.exe` for the GUI. The same file accepts CLI commands:
+Double-click `EnergyControl.exe` to open the GUI. The same executable supports CLI commands:
 
 ```text
 EnergyControl.exe status
@@ -45,20 +46,20 @@ EnergyControl.exe charge threshold set 75 80 --apply
 EnergyControl.exe performance set performance --apply
 ```
 
-写操作必须显式添加 `--apply`，否则程序不会打开驱动写入路径。
+Without `--apply`, a write command exits before opening a driver write path or invoking an optional setter.
 
-## Important limitations / 重要限制
+## Important limitations
 
-- Firmware conservation mode is not the same thing as an arbitrary percentage threshold. A device may expose a fixed 80% maintenance mode while not supporting custom 75–85% values.
-- Optional Vantage/Power RPC features can be unavailable, return RPC error `1722`, or be rejected by firmware. These failures do not disable the direct charging path.
-- This project is not Lenovo software, is not endorsed by Lenovo, and uses no Lenovo logo or private binary in the repository or release ZIP.
-- Driver writes can affect battery behavior. Use the GUI confirmation and read-only diagnostics first.
+- Firmware conservation mode is not the same as an arbitrary percentage threshold. A device may expose a fixed 80% maintenance mode without supporting custom values such as 75–85%.
+- Optional Vantage or Power RPC features may be unavailable, return RPC error `1722`, or be rejected by firmware. These failures do not disable the direct charging path.
+- Driver writes can affect battery behavior. Run read-only diagnostics first and review the GUI confirmation before applying a change.
+- This project is not Lenovo software, is not endorsed by Lenovo, and does not use a Lenovo logo or distribute Lenovo private components.
 
-固件养护模式不等同于任意百分比阈值；设备可能只支持固定 80% 养护而不支持自定义 75–85%。Power RPC 缺失或返回 `1722` 时，直接充电功能仍会独立工作。
+See [COMPATIBILITY.md](COMPATIBILITY.md) for device-family differences and [INTERFACES.md](INTERFACES.md) for protocol details.
 
-## Build from source / 从源码构建
+## Build from source
 
-The SDK-style project targets `.NET Framework 4.8` and restores the public `Microsoft.NETFramework.ReferenceAssemblies.net48` package at build time. No Lenovo DLL is needed to compile or run the read-only test suite.
+The SDK-style project targets .NET Framework 4.8 and restores the public `Microsoft.NETFramework.ReferenceAssemblies.net48` package at build time. Lenovo DLLs are not required to compile the project or run its automated tests.
 
 ```powershell
 .\build.ps1 -Clean
@@ -66,12 +67,20 @@ The SDK-style project targets `.NET Framework 4.8` and restores the public `Micr
 .\verify-layout.ps1
 ```
 
-The portable payload is copied to `artifacts\publish\EnergyControl.exe`. The optional Lenovo integrations are discovered from their installed system locations at runtime and are never packaged.
+The portable executable is copied to `artifacts\publish\EnergyControl.exe`. Optional Lenovo integrations are discovered from installed system locations at runtime and are never packaged by the build.
 
-## Privacy and safety / 隐私与安全
+## Privacy and security
 
-EnergyControl has no telemetry, analytics, network client, or automatic update service. Diagnostics are local and read-only. Please report security issues privately according to [SECURITY.md](SECURITY.md), and read [DISCLAIMER.md](DISCLAIMER.md) before using driver writes.
+EnergyControl has no telemetry, analytics, network client, or automatic update service. Diagnostics are local and read-only.
 
-## License / 许可证
+Report security issues privately according to [SECURITY.md](SECURITY.md), and read [DISCLAIMER.md](DISCLAIMER.md) before using driver writes.
 
-GPL-3.0-only. See [LICENSE](LICENSE). “Lenovo” is used only to describe compatibility; all product names and trademarks belong to their respective owners.
+## Contributing
+
+Contributions and compatibility reports are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Do not upload Lenovo private binaries, firmware images, or personal diagnostic data.
+
+## License
+
+EnergyControl for Lenovo is licensed under `GPL-3.0-only`. See [LICENSE](LICENSE).
+
+“Lenovo” is used only to describe compatibility. All product names and trademarks belong to their respective owners.
