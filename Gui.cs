@@ -459,7 +459,7 @@ namespace LenovoSettingsGui
             card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            card.RowStyles.Add(new RowStyle(SizeType.Absolute, 46));
+            card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             card.Controls.Add(new Label
             {
                 Text = title,
@@ -480,10 +480,10 @@ namespace LenovoSettingsGui
             supported.Margin = new Padding(0, 0, 0, 10);
             card.Controls.Add(supported, 0, 2);
 
-            modes.AutoSize = false;
-            modes.Height = 46;
+            modes.AutoSize = true;
+            modes.AutoSizeMode = AutoSizeMode.GrowAndShrink;
             modes.Dock = DockStyle.Top;
-            modes.WrapContents = false;
+            modes.WrapContents = true;
             modes.Margin = Padding.Empty;
             modes.Padding = Padding.Empty;
             modes.AccessibleName = title + "选项";
