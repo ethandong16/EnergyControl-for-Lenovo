@@ -38,6 +38,10 @@ namespace LenovoSettingsDemo
 
         private static object agent;
         private static Type agentType;
+        private static readonly ChargeThresholdClient thresholdClient =
+            new ChargeThresholdClient();
+        private static readonly EnergyDriverChargeClient directChargeClient =
+            new EnergyDriverChargeClient();
 
         private static int Main(string[] args)
         {
@@ -64,12 +68,12 @@ namespace LenovoSettingsDemo
             catch (TargetInvocationException ex)
             {
                 Exception cause = ex.InnerException ?? ex;
-                Console.Error.WriteLine("Lenovo Addin call failed: " + cause.Message);
+                Console.Error.WriteLine("Operation failed: " + cause.Message);
                 return 1;
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine("Lenovo Addin call failed: " + ex.Message);
+                Console.Error.WriteLine("Operation failed: " + ex.Message);
                 return 1;
             }
         }
@@ -95,6 +99,17 @@ namespace LenovoSettingsDemo
                 Console.WriteLine("Unavailable: " + RootMessage(ex));
             }
             Console.WriteLine();
+            Console.WriteLine("== Charge threshold ==");
+            try
+            {
+                PrintThreshold(thresholdClient.Read(0));
+                readAny = true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Unavailable: " + RootMessage(ex));
+            }
+            Console.WriteLine();
             Console.WriteLine("== Performance management ==");
             try
             {
@@ -110,6 +125,12 @@ namespace LenovoSettingsDemo
 
         private static int HandleCharge(string[] args)
         {
+            if (args.Length >= 3 && EqualsArg(args[1], "direct"))
+                return HandleDirectCharge(args);
+
+            if (args.Length >= 3 && EqualsArg(args[1], "threshold"))
+                return HandleChargeThreshold(args);
+
             if (args.Length == 2 && EqualsArg(args[1], "get"))
             {
                 PrintResponse(InvokeAgent("GetBatteryChargeMode"));
@@ -142,6 +163,121 @@ namespace LenovoSettingsDemo
 
             PrintUsage();
             return 2;
+        }
+
+        private static int HandleDirectCharge(string[] args)
+        {
+            if (args.Length == 3 && EqualsArg(args[2], "get"))
+            {
+                PrintDirectCharge(directChargeClient.Read());
+                return 0;
+            }
+
+            if (args.Length >= 4 && EqualsArg(args[2], "set"))
+            {
+                BatteryChargeModeType contractMode;
+                if (!ChargeModes.TryGetValue(args[3], out contractMode))
+                    return InvalidMode("charge");
+                RequireApply(args);
+
+                DirectChargeMode mode = ToDirectMode(contractMode);
+                Console.WriteLine("Before:");
+                PrintDirectCharge(directChargeClient.Read());
+                Console.WriteLine("After:");
+                PrintDirectCharge(directChargeClient.SetMode(mode));
+                return 0;
+            }
+
+            PrintUsage();
+            return 2;
+        }
+
+        private static DirectChargeMode ToDirectMode(BatteryChargeModeType mode)
+        {
+            switch (mode)
+            {
+                case BatteryChargeModeType.Storage:
+                    return DirectChargeMode.Storage;
+                case BatteryChargeModeType.Quick:
+                    return DirectChargeMode.Quick;
+                default:
+                    return DirectChargeMode.Normal;
+            }
+        }
+
+        private static void PrintDirectCharge(DirectChargeState state)
+        {
+            var output = new JObject();
+            output["backend"] = "EnergyDrv";
+            output["protocol"] = EnergyDriverChargeClient.DescribeProtocol();
+            output["mode"] = state.Mode.ToString();
+            output["supportedModes"] = state.SupportedModes;
+            output["storageEnabled"] = state.StorageEnabled;
+            output["quickEnabled"] = state.QuickEnabled;
+            output["quickCapable"] = state.QuickCapable;
+            output["storage80Capable"] = state.Storage80Capable;
+            output["storageLimit"] = state.LimitDescription;
+            output["rawFlags"] = "0x" + state.RawFlags.ToString("X8");
+            Console.WriteLine(output.ToString(Formatting.Indented));
+        }
+
+        private static int HandleChargeThreshold(string[] args)
+        {
+            const int slot = 0;
+            if (args.Length == 3 && EqualsArg(args[2], "get"))
+            {
+                PrintThreshold(thresholdClient.Read(slot));
+                return 0;
+            }
+
+            if (args.Length >= 5 && EqualsArg(args[2], "set"))
+            {
+                int startValue;
+                int stopValue;
+                if (!Int32.TryParse(args[3], out startValue) ||
+                    !Int32.TryParse(args[4], out stopValue))
+                    throw new ArgumentException("起充和停充阈值必须是整数百分比。");
+                ChargeThresholdClient.ValidateValues(startValue, stopValue);
+                RequireApply(args);
+
+                Console.WriteLine("Before:");
+                ChargeThresholdState before = thresholdClient.Read(slot);
+                PrintThreshold(before);
+                if (!before.IsCapable)
+                    throw new InvalidOperationException("设备未报告支持自定义充电阈值。");
+                if (!before.IsWritable)
+                    throw new InvalidOperationException("当前 Power RPC 客户端不提供阈值写入接口。");
+
+                thresholdClient.Set(slot, startValue, stopValue);
+                Console.WriteLine("Set response:");
+                Console.WriteLine("0");
+                Console.WriteLine("After:");
+                ChargeThresholdState after = thresholdClient.Read(slot);
+                PrintThreshold(after);
+                if (!after.IsEnabled || after.StartValue != startValue ||
+                    after.StopValue != stopValue)
+                    throw new InvalidOperationException(
+                        "设备未启用或未接受请求的阈值；当前为 " +
+                        after.StartValue + "% / " +
+                        after.StopValue + "% 。");
+                return 0;
+            }
+
+            PrintUsage();
+            return 2;
+        }
+
+        private static void PrintThreshold(ChargeThresholdState state)
+        {
+            var output = new JObject();
+            output["slot"] = state.Slot;
+            output["capable"] = state.IsCapable;
+            output["enabled"] = state.IsEnabled;
+            output["startPercent"] = state.StartValue;
+            output["stopPercent"] = state.StopValue;
+            output["writable"] = state.IsWritable;
+            output["client"] = state.ClientInfo;
+            Console.WriteLine(output.ToString(Formatting.Indented));
         }
 
         private static int HandlePerformance(string[] args)
@@ -366,6 +502,22 @@ namespace LenovoSettingsDemo
             Console.WriteLine("Process architecture: " + (Environment.Is64BitProcess ? "x64" : "x86"));
             Console.WriteLine("Hardware: " + AddinLocator.HardwareSummary());
             Console.WriteLine("IdeaNotebookAddin: " + AddinLocator.DescribeAssembly(path));
+            Console.WriteLine("Charge threshold RPC: " +
+                ChargeThresholdClient.DescribeAvailability());
+            try
+            {
+                DirectChargeState direct = directChargeClient.Read();
+                Console.WriteLine("Direct charge driver: available (" +
+                    EnergyDriverChargeClient.DescribeProtocol() + ")");
+                Console.WriteLine("Direct charge flags: 0x" +
+                    direct.RawFlags.ToString("X8") + ", mode=" + direct.Mode +
+                    ", storage80=" + direct.Storage80Capable);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("Direct charge driver: unavailable - " +
+                    RootMessage(ex));
+            }
             if (String.IsNullOrWhiteSpace(path))
             {
                 Console.WriteLine("Result: unsupported (Lenovo Addin not installed)");
@@ -417,17 +569,23 @@ namespace LenovoSettingsDemo
         private static void PrintUsage()
         {
             Console.WriteLine(
-                "LenovoSettingsDemo - call IdeaNotebookAddin without starting Baiying");
+                "LenovoSettingsDemo - direct Lenovo charge driver and Addin controls");
             Console.WriteLine();
             Console.WriteLine("Read-only:");
             Console.WriteLine("  LenovoSettingsDemo.exe status");
             Console.WriteLine("  LenovoSettingsDemo.exe charge get");
+            Console.WriteLine("  LenovoSettingsDemo.exe charge direct get");
+            Console.WriteLine("  LenovoSettingsDemo.exe charge threshold get");
             Console.WriteLine("  LenovoSettingsDemo.exe performance get");
             Console.WriteLine("  LenovoSettingsDemo.exe diagnose");
             Console.WriteLine();
             Console.WriteLine("Writes (explicit --apply required):");
             Console.WriteLine(
                 "  LenovoSettingsDemo.exe charge set normal|conservation|express --apply");
+            Console.WriteLine(
+                "  LenovoSettingsDemo.exe charge direct set normal|conservation|express --apply");
+            Console.WriteLine(
+                "  LenovoSettingsDemo.exe charge threshold set <start-percent> <stop-percent> --apply");
             Console.WriteLine(
                 "  LenovoSettingsDemo.exe performance set auto|quiet|performance|geek --apply");
             Console.WriteLine(

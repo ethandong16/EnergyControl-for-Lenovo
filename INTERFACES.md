@@ -1,7 +1,8 @@
 # 联想百应：充电模式与性能管理接口
 
-本目录的 Demo 不启动 `LenovoBaiying.exe`，也不创建 WebView2。它在当前用户
-进程中直接加载联想已安装的 `IdeaNotebookAddin.dll`，调用与百应相同的设备代理。
+本目录的 Demo 不主动启动 `LenovoBaiying.exe`，也不创建 WebView2。GUI 的充电模式
+优先直接访问 `\\.\EnergyDrv`，失败后才回退到 `IdeaNotebookAddin.dll`；性能模式使用
+Addin。自定义充电阈值使用 Power RPC，因此需要对应的 Vantage/百应服务端运行。
 
 不同产品线的能力并不统一，产品线调查、命名别名和降级策略见
 [`COMPATIBILITY.md`](COMPATIBILITY.md)。GUI 和 CLI 都以本机返回的
@@ -52,6 +53,8 @@ GUI 启动后自动读取状态，只显示本机报告支持的模式。点击�
 
 ```powershell
 .\bin\LenovoSettingsDemo.exe charge get
+.\bin\LenovoSettingsDemo.exe charge direct get
+.\bin\LenovoSettingsDemo.exe charge threshold get
 .\bin\LenovoSettingsDemo.exe performance get
 ```
 
@@ -61,6 +64,10 @@ GUI 启动后自动读取状态，只显示本机报告支持的模式。点击�
 .\bin\LenovoSettingsDemo.exe charge set normal --apply
 .\bin\LenovoSettingsDemo.exe charge set conservation --apply
 .\bin\LenovoSettingsDemo.exe charge set express --apply
+.\bin\LenovoSettingsDemo.exe charge direct set normal --apply
+.\bin\LenovoSettingsDemo.exe charge direct set conservation --apply
+.\bin\LenovoSettingsDemo.exe charge direct set express --apply
+.\bin\LenovoSettingsDemo.exe charge threshold set 75 80 --apply
 
 .\bin\LenovoSettingsDemo.exe performance set auto --apply
 .\bin\LenovoSettingsDemo.exe performance set quiet --apply
@@ -74,9 +81,19 @@ GUI 启动后自动读取状态，只显示本机报告支持的模式。点击�
 
 ```text
 LenovoSettingsDemo.exe
+  -> CreateFile("\\.\EnergyDrv")
+  -> DeviceIoControl(0x831020F8)
+  -> Lenovo ACPIVPC / EC firmware
+
+LenovoSettingsDemo.exe
   -> IdeaNotebookAddin.IdeaNotebookAgent.GetInstance()
   -> IdeaBatteryAgent.dll / IdeaPowerAgent.dll
   -> Lenovo 电源、固件和调度器驱动
+
+LenovoSettingsDemo.exe
+  -> Lenovo.Vantage.PowerRpcClient.dll
+  -> ncalrpc:BaseModuleRpcEndpoint_0 ... _9
+  -> Lenovo Vantage / 百应电源服务
 ```
 
 `IdeaNotebookAgent` 本身是程序集内部类型，但其下列业务方法是 public。Demo 用反射
@@ -122,6 +139,21 @@ new BatteryMgmtRequest {
 | `normal` | `Normal` | 0 | 1 |
 | `conservation` / `storage` | `Storage` | 1 | 2 |
 | `express` / `quick` | `Quick` | 2 | 4 |
+
+### 直接驱动协议
+
+`charge direct ...` 不加载 Vantage/百应 DLL。它使用逆向得到的 EnergyDrv 协议：
+
+| 操作 | 输入命令 | 状态/能力位 |
+| --- | ---: | ---: |
+| 查询 | `0xFF` | 返回 32 位 flags |
+| 开启/关闭养护 | `0x03` / `0x05` | 状态 `0x20` |
+| 开启/关闭快充 | `0x07` / `0x08` | 状态 `0x04`，能力 `0x20000` |
+| 固定 80% 扩展开启/关闭 | `0x0D` / `0x0F` | 能力 `0x4000` |
+
+固定 80% 扩展命令只会在固件返回 `0x4000` 能力位时发送。没有该位时，“养护”是
+固件预设策略，Demo 不推断其百分比。完整证据见
+[`REVERSE_ENGINEERING.md`](REVERSE_ENGINEERING.md)。
 
 本机只读实测结果：
 
@@ -243,14 +275,35 @@ Addin 才会把 `MMC_Geek` 和 `IsGeekOptionGrey` 加入响应。
 
 因此本 Demo 不使用该 RPC 路径，也不伪造 `callerPid` 或绕过签名/许可证校验。
 
-## 旧 PowerRpcClient 接口
+## 自定义充电阈值（PowerRpcClient）
 
 `Lenovo.Vantage.PowerRpcClient.dll` 搜索
-`ncalrpc:BaseModuleRpcEndpoint_0` 到 `_9`。百应未启动时，本机
-`ClientInitialize()` 返回 1722（`RPC_S_SERVER_UNAVAILABLE`），后续 getter
-返回 1775。因此它不适合作为“无百应进程”方案。
+`ncalrpc:BaseModuleRpcEndpoint_0` 到 `_9`。Demo 会优先加载程序目录中的客户端，
+找不到时再从已安装的 Vantage Addin 中定位最高版本。接口签名为：
 
-IDA 恢复的旧接口 procedure：
+```csharp
+int ClientGetChargeThreshold(
+    int slotnum,
+    out bool iscapable,
+    out bool isenabled,
+    out int startval,
+    out int stopval);
+
+int ClientSetChargeThreshold(int slotnum, int startVal, int stopVal);
+```
+
+- `startval`：电量低于该百分比后开始充电。
+- `stopval`：电量达到该百分比后停止充电。
+- Demo 当前操作内置电池槽位 `0`，要求两个值位于 `0..100` 且
+  `startVal < stopVal`。
+- 写入前读取 `iscapable`，不支持、只读或 RPC 返回非零错误码时不会继续写入。
+- CLI 写入仍必须显式带 `--apply`；GUI 写入前显示确认对话框，写入后重新读取校验。
+
+百应/Vantage 服务端未启动时，本机 `ClientInitialize()` 返回 1722
+（`RPC_S_SERVER_UNAVAILABLE`）。Demo 不会自行启动服务，只会将阈值功能显示为局部
+不可用；充电模式和性能模式仍可继续使用。
+
+IDA 恢复的接口 procedure：
 
 | 方法 | Procedure |
 | --- | ---: |

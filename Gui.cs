@@ -48,9 +48,17 @@ namespace LenovoSettingsGui
         public string IsGeekOptionGrey;
         public string ErrorCode;
         public string ChargeError;
+        public string ChargeBackend;
+        public string ChargeLimitInfo;
+        public string ThresholdError;
         public string PerformanceError;
         public string AddinInfo;
         public bool ChargeWritable;
+        public bool ThresholdCapable;
+        public bool ThresholdEnabled;
+        public bool ThresholdWritable;
+        public int ThresholdStart;
+        public int ThresholdStop;
         public bool PerformanceWritable;
     }
 
@@ -60,6 +68,11 @@ namespace LenovoSettingsGui
         private const string AgentTypeName = "IdeaNotebookAddin.IdeaNotebookAgent";
         private object agent;
         private Type agentType;
+        private readonly ChargeThresholdClient thresholdClient =
+            new ChargeThresholdClient();
+        private readonly EnergyDriverChargeClient directChargeClient =
+            new EnergyDriverChargeClient();
+        private bool directChargeActive;
 
         public DeviceState ReadState()
         {
@@ -69,22 +82,51 @@ namespace LenovoSettingsGui
             };
             try
             {
-                object charge = Invoke("GetBatteryChargeMode");
-                state.ChargeMode = ReadSetting(charge, "BatteryChargeMode");
-                state.SupportedChargeModes = ReadSetting(
-                    charge,
-                    "Supported-BatteryChargeMode",
-                    "SupportedBatteryChargeMode",
-                    "BatteryChargeModeSupported");
-                string chargeErrorCode = AddinResponse.ErrorCode(charge);
-                if (!String.IsNullOrWhiteSpace(chargeErrorCode) && chargeErrorCode != "0")
-                    state.ChargeError = "设备返回错误 " + chargeErrorCode;
-                state.ChargeWritable = HasMethod(
-                    "SetBatteryChargeMode", typeof(BatteryMgmtRequest));
+                DirectChargeState direct = directChargeClient.Read();
+                state.ChargeMode = direct.Mode.ToString();
+                state.SupportedChargeModes = direct.SupportedModes;
+                state.ChargeWritable = true;
+                state.ChargeBackend = "直接驱动";
+                state.ChargeLimitInfo = direct.LimitDescription;
+                directChargeActive = true;
+            }
+            catch (Exception directError)
+            {
+                directChargeActive = false;
+                try
+                {
+                    object charge = Invoke("GetBatteryChargeMode");
+                    state.ChargeMode = ReadSetting(charge, "BatteryChargeMode");
+                    state.SupportedChargeModes = ReadSetting(
+                        charge,
+                        "Supported-BatteryChargeMode",
+                        "SupportedBatteryChargeMode",
+                        "BatteryChargeModeSupported");
+                    string chargeErrorCode = AddinResponse.ErrorCode(charge);
+                    if (!String.IsNullOrWhiteSpace(chargeErrorCode) && chargeErrorCode != "0")
+                        state.ChargeError = "设备返回错误 " + chargeErrorCode;
+                    state.ChargeWritable = HasMethod(
+                        "SetBatteryChargeMode", typeof(BatteryMgmtRequest));
+                    state.ChargeBackend = "Lenovo Addin";
+                }
+                catch (Exception addinError)
+                {
+                    state.ChargeError = "直接驱动：" + RootMessage(directError) +
+                        "；Addin：" + RootMessage(addinError);
+                }
+            }
+            try
+            {
+                ChargeThresholdState threshold = thresholdClient.Read(0);
+                state.ThresholdCapable = threshold.IsCapable;
+                state.ThresholdEnabled = threshold.IsEnabled;
+                state.ThresholdWritable = threshold.IsWritable;
+                state.ThresholdStart = threshold.StartValue;
+                state.ThresholdStop = threshold.StopValue;
             }
             catch (Exception ex)
             {
-                state.ChargeError = RootMessage(ex);
+                state.ThresholdError = RootMessage(ex);
             }
             try
             {
@@ -117,6 +159,28 @@ namespace LenovoSettingsGui
 
         public object SetCharge(BatteryChargeModeType mode)
         {
+            if (directChargeActive)
+            {
+                DirectChargeMode directMode;
+                switch (mode)
+                {
+                    case BatteryChargeModeType.Storage:
+                        directMode = DirectChargeMode.Storage;
+                        break;
+                    case BatteryChargeModeType.Quick:
+                        directMode = DirectChargeMode.Quick;
+                        break;
+                    default:
+                        directMode = DirectChargeMode.Normal;
+                        break;
+                }
+                DirectChargeState result = directChargeClient.SetMode(directMode);
+                var response = new JObject();
+                response["ErrorCode"] = "0";
+                response["backend"] = "EnergyDrv";
+                response["mode"] = result.Mode.ToString();
+                return response;
+            }
             return Invoke("SetBatteryChargeMode", new BatteryMgmtRequest
             {
                 BatteryChargeMode = mode
@@ -130,6 +194,11 @@ namespace LenovoSettingsGui
                 ItsMode = mode,
                 UISupportGeekMode = true
             });
+        }
+
+        public void SetThreshold(int startValue, int stopValue)
+        {
+            thresholdClient.Set(0, startValue, stopValue);
         }
 
         private object Invoke(string methodName, params object[] arguments)
@@ -233,6 +302,12 @@ namespace LenovoSettingsGui
         private readonly FlowLayoutPanel performanceModes = new FlowLayoutPanel();
         private readonly Label chargeCurrent = new Label();
         private readonly Label chargeSupported = new Label();
+        private readonly Label thresholdCurrent = new Label();
+        private readonly Label thresholdSupported = new Label();
+        private readonly FlowLayoutPanel thresholdControls = new FlowLayoutPanel();
+        private readonly NumericUpDown thresholdStart = new NumericUpDown();
+        private readonly NumericUpDown thresholdStop = new NumericUpDown();
+        private readonly Button thresholdApply = new Button();
         private readonly Label performanceCurrent = new Label();
         private readonly Label performanceSupported = new Label();
         private readonly Label driverValue = new Label();
@@ -240,6 +315,7 @@ namespace LenovoSettingsGui
         private readonly Button refreshButton = new Button();
         private bool busy;
         private bool geekOptionGrey;
+        private bool thresholdAvailable;
 
         private static readonly ModeItem[] AllChargeModes =
         {
@@ -277,7 +353,7 @@ namespace LenovoSettingsGui
             BackColor = Color.FromArgb(244, 246, 249);
             ForeColor = Color.FromArgb(32, 35, 42);
             StartPosition = FormStartPosition.CenterScreen;
-            ClientSize = new Size(640, 540);
+            ClientSize = new Size(640, 700);
             MinimumSize = new Size(560, 540);
             BuildLayout();
             SetBusy(true, "正在读取...");
@@ -324,10 +400,11 @@ namespace LenovoSettingsGui
             var page = AutoTable(1);
             page.Dock = DockStyle.Fill;
             page.AutoSize = false;
-            page.AutoScroll = false;
+            page.AutoScroll = true;
             page.Padding = new Padding(24, 16, 24, 16);
             page.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            page.RowCount = 4;
+            page.RowCount = 5;
+            page.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             page.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             page.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             page.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -360,8 +437,9 @@ namespace LenovoSettingsGui
             page.Controls.Add(header, 0, 0);
             page.Controls.Add(CreateCard("充电模式", chargeCurrent,
                 chargeSupported, chargeModes), 0, 1);
+            page.Controls.Add(CreateThresholdCard(), 0, 2);
             page.Controls.Add(CreateCard("性能管理", performanceCurrent,
-                performanceSupported, performanceModes), 0, 2);
+                performanceSupported, performanceModes), 0, 3);
 
             var footer = AutoTable(2);
             footer.Margin = new Padding(0, 8, 0, 0);
@@ -375,8 +453,106 @@ namespace LenovoSettingsGui
             statusLabel.Anchor = AnchorStyles.Right;
             footer.Controls.Add(driverValue, 0, 0);
             footer.Controls.Add(statusLabel, 1, 0);
-            page.Controls.Add(footer, 0, 3);
+            page.Controls.Add(footer, 0, 4);
             Controls.Add(page);
+        }
+
+        private TableLayoutPanel CreateThresholdCard()
+        {
+            var card = AutoTable(1);
+            card.BackColor = Color.White;
+            card.Padding = new Padding(18);
+            card.Margin = new Padding(0, 0, 0, 10);
+            card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            card.RowCount = 4;
+            for (int index = 0; index < 4; index++)
+                card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            card.Controls.Add(new Label
+            {
+                Text = "自定义充电阈值",
+                AutoSize = true,
+                Font = new Font(Font.FontFamily, 12F, FontStyle.Bold),
+                Margin = new Padding(0, 0, 0, 9)
+            }, 0, 0);
+
+            thresholdCurrent.Text = "当前：读取中…";
+            thresholdCurrent.AutoSize = true;
+            thresholdCurrent.Margin = new Padding(0, 0, 0, 5);
+            card.Controls.Add(thresholdCurrent, 0, 1);
+
+            thresholdSupported.Text = "支持：读取中…";
+            thresholdSupported.AutoSize = true;
+            thresholdSupported.ForeColor = Color.FromArgb(100, 110, 125);
+            thresholdSupported.Margin = new Padding(0, 0, 0, 10);
+            card.Controls.Add(thresholdSupported, 0, 2);
+
+            ConfigureThresholdInput(thresholdStart, 75, 0);
+            ConfigureThresholdInput(thresholdStop, 80, 1);
+            StyleButton(thresholdApply, "应用阈值", true);
+            thresholdApply.Margin = new Padding(8, 0, 0, 0);
+            thresholdApply.Click += async delegate
+            {
+                if (busy) return;
+                int startValue = Decimal.ToInt32(thresholdStart.Value);
+                int stopValue = Decimal.ToInt32(thresholdStop.Value);
+                try
+                {
+                    ChargeThresholdClient.ValidateValues(startValue, stopValue);
+                }
+                catch (Exception ex)
+                {
+                    ShowError("阈值无效", ex);
+                    return;
+                }
+                if (MessageBox.Show(
+                    this,
+                    "确认设置为低于 " + startValue + "% 开始充电，充到 " +
+                        stopValue + "% 停止吗？",
+                    "确认设置",
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Question) != DialogResult.Yes)
+                    return;
+                await ApplyThresholdAsync(startValue, stopValue);
+            };
+
+            thresholdControls.AutoSize = true;
+            thresholdControls.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            thresholdControls.Dock = DockStyle.Top;
+            thresholdControls.WrapContents = true;
+            thresholdControls.Margin = Padding.Empty;
+            thresholdControls.Padding = Padding.Empty;
+            thresholdControls.Visible = false;
+            thresholdControls.Enabled = false;
+            thresholdControls.AccessibleName = "自定义充电阈值设置";
+            thresholdControls.Controls.Add(CreateInlineLabel("低于"));
+            thresholdControls.Controls.Add(thresholdStart);
+            thresholdControls.Controls.Add(CreateInlineLabel("% 开始，充到"));
+            thresholdControls.Controls.Add(thresholdStop);
+            thresholdControls.Controls.Add(CreateInlineLabel("% 停止"));
+            thresholdControls.Controls.Add(thresholdApply);
+            card.Controls.Add(thresholdControls, 0, 3);
+            return card;
+        }
+
+        private static void ConfigureThresholdInput(
+            NumericUpDown input, int value, int minimum)
+        {
+            input.Minimum = minimum;
+            input.Maximum = 100;
+            input.Value = value;
+            input.Width = 64;
+            input.TextAlign = HorizontalAlignment.Center;
+            input.Margin = new Padding(5, 5, 5, 0);
+        }
+
+        private static Label CreateInlineLabel(string text)
+        {
+            return new Label
+            {
+                Text = text,
+                AutoSize = true,
+                Margin = new Padding(0, 9, 0, 0)
+            };
         }
 
         private TableLayoutPanel CreateCard(string title, Label current,
@@ -432,16 +608,18 @@ namespace LenovoSettingsGui
                 DeviceState state = await Task.Run(
                     () => client.ReadState());
                 DisplayState(state);
+                int unavailable = 0;
+                if (!String.IsNullOrWhiteSpace(state.ChargeError)) unavailable++;
+                if (!String.IsNullOrWhiteSpace(state.ThresholdError)) unavailable++;
+                if (!String.IsNullOrWhiteSpace(state.PerformanceError)) unavailable++;
                 if (!String.IsNullOrWhiteSpace(state.ErrorCode) &&
                     state.ErrorCode != "0")
                     SetStatus(
                         "设备返回错误 " + state.ErrorCode,
                         Color.FromArgb(180, 50, 45));
-                else if (!String.IsNullOrWhiteSpace(state.ChargeError) &&
-                    !String.IsNullOrWhiteSpace(state.PerformanceError))
+                else if (unavailable == 3)
                     SetStatus("设备设置接口不可用", Color.FromArgb(180, 50, 45));
-                else if (!String.IsNullOrWhiteSpace(state.ChargeError) ||
-                    !String.IsNullOrWhiteSpace(state.PerformanceError))
+                else if (unavailable > 0)
                     SetStatus("部分设置不可用", Color.FromArgb(165, 105, 25));
                 else
                     SetStatus("读取成功", Color.FromArgb(30, 125, 78));
@@ -534,6 +712,43 @@ namespace LenovoSettingsGui
             }
         }
 
+        private async Task ApplyThresholdAsync(int startValue, int stopValue)
+        {
+            SetBusy(true, "正在应用...");
+            try
+            {
+                DeviceState state = await Task.Run(() =>
+                {
+                    DeviceState before = client.ReadState();
+                    if (!String.IsNullOrWhiteSpace(before.ThresholdError) ||
+                        !before.ThresholdCapable || !before.ThresholdWritable)
+                        throw new InvalidOperationException(
+                            "设备当前不支持写入自定义充电阈值，请刷新后重试。");
+                    client.SetThreshold(startValue, stopValue);
+                    DeviceState result = client.ReadState();
+                    if (!String.IsNullOrWhiteSpace(result.ThresholdError) ||
+                        !result.ThresholdEnabled ||
+                        result.ThresholdStart != startValue ||
+                        result.ThresholdStop != stopValue)
+                        throw new InvalidOperationException(
+                            "设备未启用或未接受请求的阈值；当前为 " +
+                            result.ThresholdStart + "% / " +
+                            result.ThresholdStop + "% 。");
+                    return result;
+                });
+                DisplayState(state);
+                SetStatus("充电阈值已更新", Color.FromArgb(30, 125, 78));
+            }
+            catch (Exception ex)
+            {
+                ShowError("设置充电阈值失败", ex);
+            }
+            finally
+            {
+                SetBusy(false, null);
+            }
+        }
+
         private void DisplayState(DeviceState state)
         {
             if (state == null) return;
@@ -565,7 +780,10 @@ namespace LenovoSettingsGui
                         "支持：" + DisplaySupported(
                             AllChargeModes,
                         state.SupportedChargeModes) +
-                        (state.ChargeWritable ? "" : "（只读）");
+                        (state.ChargeWritable ? "" : "（只读）") +
+                        (String.IsNullOrWhiteSpace(state.ChargeBackend)
+                            ? ""
+                            : "  ·  " + state.ChargeBackend);
                 FillModes(
                     chargeModes,
                     AllChargeModes,
@@ -578,6 +796,45 @@ namespace LenovoSettingsGui
                 chargeCurrent.Text = "当前：不可用";
                 chargeSupported.Text = "说明：" + ShortMessage(state.ChargeError);
                 chargeModes.Controls.Clear();
+            }
+
+            if (String.IsNullOrWhiteSpace(state.ThresholdError))
+            {
+                if (state.ThresholdCapable)
+                {
+                    thresholdCurrent.Text = state.ThresholdEnabled
+                        ? "当前：低于 " + state.ThresholdStart + "% 开始，充到 " +
+                            state.ThresholdStop + "% 停止"
+                        : "当前：阈值未启用（设备返回 " + state.ThresholdStart +
+                            "% / " + state.ThresholdStop + "%）";
+                    thresholdSupported.Text = state.ThresholdWritable
+                        ? "支持：可设置起充和停充百分比"
+                        : "支持：只读";
+                    thresholdStart.Value = ClampThreshold(state.ThresholdStart, 0, 100);
+                    thresholdStop.Value = ClampThreshold(state.ThresholdStop, 0, 100);
+                }
+                else
+                {
+                    thresholdCurrent.Text = "当前：不支持自定义百分比";
+                    thresholdSupported.Text = String.IsNullOrWhiteSpace(
+                        state.ChargeLimitInfo)
+                        ? "说明：固件未报告自定义阈值能力"
+                        : "养护模式：" + state.ChargeLimitInfo;
+                }
+                thresholdAvailable = state.ThresholdCapable && state.ThresholdWritable;
+                thresholdControls.Visible = thresholdAvailable;
+                thresholdControls.Enabled = thresholdAvailable && !busy;
+            }
+            else
+            {
+                thresholdCurrent.Text = "当前：自定义百分比不可用";
+                thresholdSupported.Text = String.IsNullOrWhiteSpace(
+                    state.ChargeLimitInfo)
+                    ? "说明：" + ShortMessage(state.ThresholdError)
+                    : "养护模式：" + state.ChargeLimitInfo;
+                thresholdAvailable = false;
+                thresholdControls.Visible = false;
+                thresholdControls.Enabled = false;
             }
 
             if (String.IsNullOrWhiteSpace(state.PerformanceError))
@@ -723,11 +980,17 @@ namespace LenovoSettingsGui
             return value.Length > maxLength ? value.Substring(0, maxLength) + "..." : value;
         }
 
+        private static decimal ClampThreshold(int value, int minimum, int maximum)
+        {
+            return Math.Max(minimum, Math.Min(maximum, value));
+        }
+
         private void SetBusy(bool value, string message)
         {
             busy = value;
             refreshButton.Enabled = !value;
             chargeModes.Enabled = !value && chargeModes.Controls.Count > 0;
+            thresholdControls.Enabled = !value && thresholdAvailable;
             performanceModes.Enabled =
                 !value && performanceModes.Controls.Count > 0;
             UseWaitCursor = value;

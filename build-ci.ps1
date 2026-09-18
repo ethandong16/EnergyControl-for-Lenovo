@@ -73,6 +73,8 @@ Invoke-Compiler 'LenovoSettingsDemo' (@(
     ('/out:' + (Join-Path $outputDir 'LenovoSettingsDemo.exe'))
 ) + $commonReferences + @(
     (Join-Path $projectDir 'Compatibility.cs'),
+    (Join-Path $projectDir 'DirectChargeMode.cs'),
+    (Join-Path $projectDir 'ChargeThreshold.cs'),
     (Join-Path $projectDir 'Program.cs')
 ))
 
@@ -84,6 +86,8 @@ Invoke-Compiler 'LenovoSettingsGui' (@(
     '/reference:System.Drawing.dll'
 ) + $commonReferences + @(
     (Join-Path $projectDir 'Compatibility.cs'),
+    (Join-Path $projectDir 'DirectChargeMode.cs'),
+    (Join-Path $projectDir 'ChargeThreshold.cs'),
     (Join-Path $projectDir 'Gui.cs')
 ))
 
