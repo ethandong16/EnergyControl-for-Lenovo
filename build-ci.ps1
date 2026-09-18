@@ -3,7 +3,9 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$arguments = @('-Configuration', 'Release')
-if ($Clean) { $arguments += '-Clean' }
-& (Join-Path $PSScriptRoot 'build.ps1') @arguments
+if ($Clean) {
+    & (Join-Path $PSScriptRoot 'build.ps1') -Configuration Release -Clean
+} else {
+    & (Join-Path $PSScriptRoot 'build.ps1') -Configuration Release
+}
 if ($LASTEXITCODE -ne 0) { throw "CI build failed with exit code $LASTEXITCODE" }
