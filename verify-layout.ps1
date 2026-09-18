@@ -4,7 +4,11 @@ Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 $projectDir = $PSScriptRoot
-$asm = [Reflection.Assembly]::LoadFrom((Join-Path $projectDir 'bin\LenovoSettingsGui.exe'))
+$exePath = Join-Path $projectDir 'bin\Release\net48\EnergyControl.exe'
+if (-not (Test-Path -LiteralPath $exePath)) {
+    $exePath = Join-Path $projectDir 'artifacts\publish\EnergyControl.exe'
+}
+$asm = [Reflection.Assembly]::LoadFrom($exePath)
 $flags = [Reflection.BindingFlags]'Instance,NonPublic,Public'
 $allFlags = [Reflection.BindingFlags]'Static,Instance,NonPublic,Public'
 $formType = $asm.GetType('LenovoSettingsGui.MainForm', $true)
@@ -47,7 +51,7 @@ $capabilityType = $asm.GetType('LenovoSettingsCompat.CapabilityNames', $true)
 $matchesMethod = $capabilityType.GetMethod('Matches', $allFlags)
 $splitMethod = $capabilityType.GetMethod('Split', $allFlags)
 $responseType = $asm.GetType('LenovoSettingsCompat.AddinResponse', $true)
-$toObjectMethod = $responseType.GetMethod('ToObject', $allFlags)
+$toDictionaryMethod = $responseType.GetMethod('ToDictionary', $allFlags)
 $thresholdClientType = $asm.GetType('LenovoSettingsCompat.ChargeThresholdClient', $true)
 $validateThresholdMethod = $thresholdClientType.GetMethod('ValidateValues', $allFlags)
 if (-not $matchesMethod.Invoke($null, [object[]]@('ITS_Auto;Balanced|MMC_Cool', [string[]]@('Auto','ITS_Auto')))) {
@@ -56,7 +60,7 @@ if (-not $matchesMethod.Invoke($null, [object[]]@('ITS_Auto;Balanced|MMC_Cool', 
 if (@($splitMethod.Invoke($null, [object[]]@('Normal;Storage|Quick'))).Count -ne 3) {
     throw 'Capability separator parsing failed'
 }
-if ($toObjectMethod.Invoke($null, [object[]]@('not-json')).HasValues) {
+if ($toDictionaryMethod.Invoke($null, [object[]]@('not-json')).Count -ne 0) {
     throw 'Malformed Addin responses must degrade to an empty object'
 }
 $validateThresholdMethod.Invoke($null, [object[]]@(75,80)) | Out-Null
@@ -70,7 +74,7 @@ if (-not $invalidThresholdRejected) {
     throw 'Invalid charge threshold order was accepted'
 }
 if ($LiveRead) {
-    $cli = Join-Path $projectDir 'bin\LenovoSettingsDemo.exe'
+    $cli = $exePath
     $charge = (& $cli charge get | Out-String | ConvertFrom-Json)
     if ($LASTEXITCODE -ne 0) { throw 'Charge getter failed' }
     $power = (& $cli performance get | Out-String | ConvertFrom-Json)
@@ -135,9 +139,13 @@ foreach ($scenario in $scenarios) {
     $form = [Activator]::CreateInstance($formType,$true)
     try {
         # Remove the hardware callback before showing the form for rendering.
+        $formType.GetMethod('DisableInitialRefresh',$flags).Invoke($form,$null) | Out-Null
         $eventList = [System.ComponentModel.Component].GetProperty('Events',$flags).GetValue($form,$null)
-        $shownKey = [System.Windows.Forms.Form].GetField('s_shownEvent',[Reflection.BindingFlags]'NonPublic,Static').GetValue($null)
-        $eventList.RemoveHandler($shownKey,$eventList[$shownKey])
+        $shownField = [System.Windows.Forms.Form].GetField('s_shownEvent',[Reflection.BindingFlags]'NonPublic,Static')
+        if ($shownField) {
+            $shownKey = $shownField.GetValue($null)
+            if ($eventList[$shownKey]) { $eventList.RemoveHandler($shownKey,$eventList[$shownKey]) }
+        }
         $form.ShowInTaskbar = $false
         $form.Opacity = 0
         $formType.GetMethod('DisplayState',$flags).Invoke($form,@($state)) | Out-Null

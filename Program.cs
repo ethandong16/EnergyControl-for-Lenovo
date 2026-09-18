@@ -2,541 +2,315 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using Lenovo.Modern.Contracts.BatteryManagement;
-using Lenovo.Modern.Contracts.Power;
 using LenovoSettingsCompat;
 
 namespace LenovoSettingsDemo
 {
     internal static class Program
     {
-        private const string AddinAssemblyName = "IdeaNotebookAddin.dll";
-        private const string AgentTypeName = "IdeaNotebookAddin.IdeaNotebookAgent";
-
-        private static readonly Dictionary<string, BatteryChargeModeType> ChargeModes =
-            new Dictionary<string, BatteryChargeModeType>(StringComparer.OrdinalIgnoreCase)
+        private static readonly Dictionary<string, ChargeMode> ChargeModes =
+            new Dictionary<string, ChargeMode>(StringComparer.OrdinalIgnoreCase)
             {
-                { "normal", BatteryChargeModeType.Normal },
-                { "conservation", BatteryChargeModeType.Storage },
-                { "storage", BatteryChargeModeType.Storage },
-                { "express", BatteryChargeModeType.Quick },
-                { "quick", BatteryChargeModeType.Quick }
+                { "normal", ChargeMode.Normal },
+                { "conservation", ChargeMode.Storage },
+                { "storage", ChargeMode.Storage },
+                { "express", ChargeMode.Quick },
+                { "quick", ChargeMode.Quick }
             };
 
-        private static readonly Dictionary<string, ItsModeType> PerformanceModes =
-            new Dictionary<string, ItsModeType>(StringComparer.OrdinalIgnoreCase)
+        private static readonly Dictionary<string, PerformanceMode> PerformanceModes =
+            new Dictionary<string, PerformanceMode>(StringComparer.OrdinalIgnoreCase)
             {
-                { "auto", ItsModeType.ItsAuto },
-                { "quiet", ItsModeType.MmcCool },
-                { "cool", ItsModeType.MmcCool },
-                { "battery-saving", ItsModeType.MmcCool },
-                { "performance", ItsModeType.MmcPerformance },
-                { "geek", ItsModeType.MmcGeek }
+                { "auto", PerformanceMode.Auto },
+                { "quiet", PerformanceMode.Cool },
+                { "cool", PerformanceMode.Cool },
+                { "battery-saving", PerformanceMode.Cool },
+                { "performance", PerformanceMode.Performance },
+                { "geek", PerformanceMode.Geek }
             };
 
-        private static object agent;
-        private static Type agentType;
-        private static readonly ChargeThresholdClient thresholdClient =
-            new ChargeThresholdClient();
-        private static readonly EnergyDriverChargeClient directChargeClient =
-            new EnergyDriverChargeClient();
+        private static readonly LenovoOptionalFeaturesClient optionalClient = new LenovoOptionalFeaturesClient();
+        private static readonly ChargeThresholdClient thresholdClient = new ChargeThresholdClient();
+        private static readonly EnergyDriverChargeClient directChargeClient = new EnergyDriverChargeClient();
 
-        private static int Main(string[] args)
+        internal static int Run(string[] args)
         {
             try
             {
-                if (args.Length == 0 || EqualsArg(args[0], "status"))
-                    return ShowStatus();
-                if (EqualsArg(args[0], "charge"))
-                    return HandleCharge(args);
-                if (EqualsArg(args[0], "performance"))
-                    return HandlePerformance(args);
-                if (EqualsArg(args[0], "diagnose") || EqualsArg(args[0], "capabilities"))
-                    return ShowDiagnostics();
+                if (args == null || args.Length == 0 || EqualsArg(args[0], "status")) return ShowStatus();
+                if (EqualsArg(args[0], "charge")) return HandleCharge(args);
+                if (EqualsArg(args[0], "performance")) return HandlePerformance(args);
+                if (EqualsArg(args[0], "diagnose") || EqualsArg(args[0], "capabilities")) return ShowDiagnostics();
                 if (EqualsArg(args[0], "help") || EqualsArg(args[0], "--help") || EqualsArg(args[0], "-h"))
                 {
                     PrintUsage();
                     return 0;
                 }
-
                 Console.Error.WriteLine("Unknown command: " + args[0]);
                 PrintUsage();
                 return 2;
             }
             catch (TargetInvocationException ex)
             {
-                Exception cause = ex.InnerException ?? ex;
-                Console.Error.WriteLine("Operation failed: " + cause.Message);
+                Console.Error.WriteLine("Operation failed: " + (ex.InnerException ?? ex).Message);
                 return 1;
             }
             catch (Exception ex)
             {
-                Console.Error.WriteLine("Operation failed: " + ex.Message);
+                Console.Error.WriteLine("Operation failed: " + RootMessage(ex));
                 return 1;
             }
         }
 
         private static int ShowStatus()
         {
-            Console.WriteLine("== Compatibility ==");
-            string addinPath = AddinLocator.FindAssembly();
-            Console.WriteLine("Addin: " + AddinLocator.DescribeAssembly(addinPath));
-            Console.WriteLine("OS: " + (Environment.Is64BitOperatingSystem ? "x64" : "x86") +
-                ", process: " + (Environment.Is64BitProcess ? "x64" : "x86"));
+            Console.WriteLine("== EnergyControl for Lenovo ==");
+            Console.WriteLine("Unofficial preview; stable direct charge, experimental optional features");
+            Console.WriteLine("OS: " + (Environment.Is64BitOperatingSystem ? "x64" : "x86") + ", process: " + (Environment.Is64BitProcess ? "x64" : "x86"));
+            Console.WriteLine("Hardware: " + AddinLocator.HardwareSummary());
             Console.WriteLine();
-
             bool readAny = false;
-            Console.WriteLine("== Charging mode ==");
-            try
-            {
-                PrintResponse(InvokeAgent("GetBatteryChargeMode"));
-                readAny = true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Unavailable: " + RootMessage(ex));
-            }
+            Console.WriteLine("== Direct charging (stable) ==");
+            try { PrintDirectCharge(directChargeClient.Read()); readAny = true; }
+            catch (Exception ex) { Console.WriteLine("Unavailable: " + RootMessage(ex)); }
             Console.WriteLine();
-            Console.WriteLine("== Charge threshold ==");
-            try
-            {
-                PrintThreshold(thresholdClient.Read(0));
-                readAny = true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Unavailable: " + RootMessage(ex));
-            }
+            Console.WriteLine("== Lenovo Addin charging (experimental fallback) ==");
+            try { PrintResponse(optionalClient.ReadCharge()); readAny = true; }
+            catch (Exception ex) { Console.WriteLine("Unavailable: " + RootMessage(ex)); }
             Console.WriteLine();
-            Console.WriteLine("== Performance management ==");
-            try
-            {
-                PrintResponse(InvokeAgent("GetITSMode", PowerReadRequest()));
-                readAny = true;
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Unavailable: " + RootMessage(ex));
-            }
+            Console.WriteLine("== Custom charge threshold (experimental) ==");
+            try { PrintThreshold(thresholdClient.Read(0)); readAny = true; }
+            catch (Exception ex) { Console.WriteLine("Unavailable: " + RootMessage(ex)); }
+            Console.WriteLine();
+            Console.WriteLine("== Performance management (experimental) ==");
+            try { PrintResponse(optionalClient.ReadPerformance()); readAny = true; }
+            catch (Exception ex) { Console.WriteLine("Unavailable: " + RootMessage(ex)); }
             return readAny ? 0 : 1;
         }
 
         private static int HandleCharge(string[] args)
         {
-            if (args.Length >= 3 && EqualsArg(args[1], "direct"))
-                return HandleDirectCharge(args);
-
-            if (args.Length >= 3 && EqualsArg(args[1], "threshold"))
-                return HandleChargeThreshold(args);
-
-            if (args.Length == 2 && EqualsArg(args[1], "get"))
-            {
-                PrintResponse(InvokeAgent("GetBatteryChargeMode"));
-                return 0;
-            }
-
+            if (args.Length >= 3 && EqualsArg(args[1], "direct")) return HandleDirectCharge(args);
+            if (args.Length >= 3 && EqualsArg(args[1], "threshold")) return HandleChargeThreshold(args);
+            if (args.Length == 2 && EqualsArg(args[1], "get")) { PrintResponse(optionalClient.ReadCharge()); return 0; }
             if (args.Length >= 3 && EqualsArg(args[1], "set"))
             {
-                BatteryChargeModeType mode;
-                if (!ChargeModes.TryGetValue(args[2], out mode))
-                    return InvalidMode("charge");
+                ChargeMode mode;
+                if (!ChargeModes.TryGetValue(args[2], out mode)) return InvalidMode("charge");
                 RequireApply(args);
-
                 Console.WriteLine("Before:");
-                object before = InvokeAgent("GetBatteryChargeMode");
+                object before = optionalClient.ReadCharge();
                 PrintResponse(before);
                 EnsureResponseSuccess(before, "读取充电能力");
                 EnsureChargeSupported(before, mode);
                 Console.WriteLine("Set response:");
-                object response = InvokeAgent("SetBatteryChargeMode", new BatteryMgmtRequest
-                {
-                    BatteryChargeMode = mode
-                });
+                object response = optionalClient.SetCharge(mode);
                 PrintResponse(response);
                 EnsureResponseSuccess(response, "充电模式");
                 Console.WriteLine("After:");
-                PrintResponse(InvokeAgent("GetBatteryChargeMode"));
+                PrintResponse(optionalClient.ReadCharge());
                 return 0;
             }
-
             PrintUsage();
             return 2;
         }
 
         private static int HandleDirectCharge(string[] args)
         {
-            if (args.Length == 3 && EqualsArg(args[2], "get"))
-            {
-                PrintDirectCharge(directChargeClient.Read());
-                return 0;
-            }
-
+            if (args.Length == 3 && EqualsArg(args[2], "get")) { PrintDirectCharge(directChargeClient.Read()); return 0; }
             if (args.Length >= 4 && EqualsArg(args[2], "set"))
             {
-                BatteryChargeModeType contractMode;
-                if (!ChargeModes.TryGetValue(args[3], out contractMode))
-                    return InvalidMode("charge");
+                ChargeMode mode;
+                if (!ChargeModes.TryGetValue(args[3], out mode)) return InvalidMode("charge");
                 RequireApply(args);
-
-                DirectChargeMode mode = ToDirectMode(contractMode);
                 Console.WriteLine("Before:");
                 PrintDirectCharge(directChargeClient.Read());
                 Console.WriteLine("After:");
-                PrintDirectCharge(directChargeClient.SetMode(mode));
+                PrintDirectCharge(directChargeClient.SetMode(ToDirectMode(mode)));
                 return 0;
             }
-
             PrintUsage();
             return 2;
         }
 
-        private static DirectChargeMode ToDirectMode(BatteryChargeModeType mode)
+        private static DirectChargeMode ToDirectMode(ChargeMode mode)
         {
             switch (mode)
             {
-                case BatteryChargeModeType.Storage:
-                    return DirectChargeMode.Storage;
-                case BatteryChargeModeType.Quick:
-                    return DirectChargeMode.Quick;
-                default:
-                    return DirectChargeMode.Normal;
+                case ChargeMode.Storage: return DirectChargeMode.Storage;
+                case ChargeMode.Quick: return DirectChargeMode.Quick;
+                default: return DirectChargeMode.Normal;
             }
         }
 
         private static void PrintDirectCharge(DirectChargeState state)
         {
-            var output = new JObject();
-            output["backend"] = "EnergyDrv";
-            output["protocol"] = EnergyDriverChargeClient.DescribeProtocol();
-            output["mode"] = state.Mode.ToString();
-            output["supportedModes"] = state.SupportedModes;
-            output["storageEnabled"] = state.StorageEnabled;
-            output["quickEnabled"] = state.QuickEnabled;
-            output["quickCapable"] = state.QuickCapable;
-            output["storage80Capable"] = state.Storage80Capable;
-            output["storageLimit"] = state.LimitDescription;
-            output["rawFlags"] = "0x" + state.RawFlags.ToString("X8");
-            Console.WriteLine(output.ToString(Formatting.Indented));
+            var output = new Dictionary<string, object>
+            {
+                { "backend", "EnergyDrv" },
+                { "protocol", EnergyDriverChargeClient.DescribeProtocol() },
+                { "mode", state.Mode.ToString() },
+                { "supportedModes", state.SupportedModes },
+                { "storageEnabled", state.StorageEnabled },
+                { "quickEnabled", state.QuickEnabled },
+                { "quickCapable", state.QuickCapable },
+                { "storage80Capable", state.Storage80Capable },
+                { "storageLimit", state.LimitDescription },
+                { "rawFlags", "0x" + state.RawFlags.ToString("X8") }
+            };
+            Console.WriteLine(JsonSupport.Serialize(output, true));
         }
 
         private static int HandleChargeThreshold(string[] args)
         {
             const int slot = 0;
-            if (args.Length == 3 && EqualsArg(args[2], "get"))
-            {
-                PrintThreshold(thresholdClient.Read(slot));
-                return 0;
-            }
-
+            if (args.Length == 3 && EqualsArg(args[2], "get")) { PrintThreshold(thresholdClient.Read(slot)); return 0; }
             if (args.Length >= 5 && EqualsArg(args[2], "set"))
             {
                 int startValue;
                 int stopValue;
-                if (!Int32.TryParse(args[3], out startValue) ||
-                    !Int32.TryParse(args[4], out stopValue))
+                if (!Int32.TryParse(args[3], out startValue) || !Int32.TryParse(args[4], out stopValue))
                     throw new ArgumentException("起充和停充阈值必须是整数百分比。");
                 ChargeThresholdClient.ValidateValues(startValue, stopValue);
                 RequireApply(args);
-
                 Console.WriteLine("Before:");
                 ChargeThresholdState before = thresholdClient.Read(slot);
                 PrintThreshold(before);
-                if (!before.IsCapable)
-                    throw new InvalidOperationException("设备未报告支持自定义充电阈值。");
-                if (!before.IsWritable)
-                    throw new InvalidOperationException("当前 Power RPC 客户端不提供阈值写入接口。");
-
+                if (!before.IsCapable) throw new InvalidOperationException("设备未报告支持自定义充电阈值。");
+                if (!before.IsWritable) throw new InvalidOperationException("当前 Power RPC 客户端不提供阈值写入接口。");
                 thresholdClient.Set(slot, startValue, stopValue);
-                Console.WriteLine("Set response:");
-                Console.WriteLine("0");
+                Console.WriteLine("Set response:\n0");
                 Console.WriteLine("After:");
                 ChargeThresholdState after = thresholdClient.Read(slot);
                 PrintThreshold(after);
-                if (!after.IsEnabled || after.StartValue != startValue ||
-                    after.StopValue != stopValue)
-                    throw new InvalidOperationException(
-                        "设备未启用或未接受请求的阈值；当前为 " +
-                        after.StartValue + "% / " +
-                        after.StopValue + "% 。");
+                if (!after.IsEnabled || after.StartValue != startValue || after.StopValue != stopValue)
+                    throw new InvalidOperationException("设备未启用或未接受请求的阈值；当前为 " + after.StartValue + "% / " + after.StopValue + "% 。");
                 return 0;
             }
-
             PrintUsage();
             return 2;
         }
 
         private static void PrintThreshold(ChargeThresholdState state)
         {
-            var output = new JObject();
-            output["slot"] = state.Slot;
-            output["capable"] = state.IsCapable;
-            output["enabled"] = state.IsEnabled;
-            output["startPercent"] = state.StartValue;
-            output["stopPercent"] = state.StopValue;
-            output["writable"] = state.IsWritable;
-            output["client"] = state.ClientInfo;
-            Console.WriteLine(output.ToString(Formatting.Indented));
+            var output = new Dictionary<string, object>
+            {
+                { "slot", state.Slot }, { "capable", state.IsCapable }, { "enabled", state.IsEnabled },
+                { "startPercent", state.StartValue }, { "stopPercent", state.StopValue },
+                { "writable", state.IsWritable }, { "client", state.ClientInfo }
+            };
+            Console.WriteLine(JsonSupport.Serialize(output, true));
         }
 
         private static int HandlePerformance(string[] args)
         {
-            if (args.Length == 2 && EqualsArg(args[1], "get"))
-            {
-                PrintResponse(InvokeAgent("GetITSMode", PowerReadRequest()));
-                return 0;
-            }
-
+            if (args.Length == 2 && EqualsArg(args[1], "get")) { PrintResponse(optionalClient.ReadPerformance()); return 0; }
             if (args.Length >= 3 && EqualsArg(args[1], "set"))
             {
-                ItsModeType mode;
-                if (!PerformanceModes.TryGetValue(args[2], out mode))
-                    return InvalidMode("performance");
+                PerformanceMode mode;
+                if (!PerformanceModes.TryGetValue(args[2], out mode)) return InvalidMode("performance");
                 RequireApply(args);
-
+                object before = optionalClient.ReadPerformance();
                 Console.WriteLine("Before:");
-                object before = InvokeAgent("GetITSMode", PowerReadRequest());
                 PrintResponse(before);
                 EnsureResponseSuccess(before, "读取性能能力");
                 EnsurePerformanceSupported(before, mode);
                 Console.WriteLine("Set response:");
-                object response = InvokeAgent("SetITSMode", new PowerSettingsRequest
-                {
-                    ItsMode = mode,
-                    UISupportGeekMode = true
-                });
+                object response = optionalClient.SetPerformance(mode);
                 PrintResponse(response);
                 EnsureResponseSuccess(response, "性能模式");
                 Console.WriteLine("After:");
-                PrintResponse(InvokeAgent("GetITSMode", PowerReadRequest()));
+                PrintResponse(optionalClient.ReadPerformance());
                 return 0;
             }
-
             if (args.Length >= 3 && EqualsArg(args[1], "auto-transition"))
             {
                 bool enabled;
                 if (EqualsArg(args[2], "on")) enabled = true;
                 else if (EqualsArg(args[2], "off")) enabled = false;
                 else throw new ArgumentException("auto-transition must be on or off.");
-
                 RequireApply(args);
+                object response = optionalClient.SetAutoTransition(enabled);
                 Console.WriteLine("Set response:");
-                object response = InvokeAgent("SetITSAutoTransition", new PowerSettingsRequest
-                {
-                    IsAutoTransitionEnabled = enabled
-                });
                 PrintResponse(response);
                 EnsureResponseSuccess(response, "自动切换");
                 Console.WriteLine("After:");
-                PrintResponse(InvokeAgent("GetITSMode", PowerReadRequest()));
+                PrintResponse(optionalClient.ReadPerformance());
                 return 0;
             }
-
             PrintUsage();
             return 2;
         }
 
-        private static PowerSettingsRequest PowerReadRequest()
+        private static void EnsureChargeSupported(object response, ChargeMode mode)
         {
-            return new PowerSettingsRequest
-            {
-                UISupportGeekMode = true
-            };
-        }
-
-        private static object InvokeAgent(string methodName, params object[] arguments)
-        {
-            EnsureAgent();
-            MethodInfo method = FindMethod(methodName, arguments);
-            if (method == null)
-                throw new MissingMethodException(agentType.FullName, methodName);
-            try
-            {
-                return method.Invoke(agent, arguments);
-            }
-            catch (TargetInvocationException ex)
-            {
-                throw ex.InnerException ?? ex;
-            }
-        }
-
-        private static void EnsureAgent()
-        {
-            if (agent != null) return;
-
-            string assemblyPath = AddinLocator.FindAssembly();
-            if (String.IsNullOrWhiteSpace(assemblyPath))
-                throw new FileNotFoundException(
-                    "未检测到 Lenovo Vantage/百应的 IdeaNotebookAddin。此电脑可能不是联想设备，或相关服务未安装。",
-                    AddinAssemblyName);
-            Assembly addin = Assembly.LoadFrom(assemblyPath);
-            agentType = AddinLocator.FindAgentType(addin);
-            if (agentType == null)
-                throw new MissingMethodException(
-                    "未在 Addin 中找到兼容的设备代理类型。可能是商用 Vantage 或不匹配的版本。");
-            MethodInfo getInstance = agentType.GetMethod(
-                "GetInstance",
-                BindingFlags.Public | BindingFlags.Static);
-            if (getInstance == null)
-                throw new MissingMethodException(AgentTypeName, "GetInstance");
-            agent = getInstance.Invoke(null, null);
-            if (agent == null)
-                throw new InvalidOperationException(
-                    "IdeaNotebookAgent.GetInstance() returned null.");
-        }
-
-        private static void PrintResponse(object response)
-        {
-            if (response == null)
-            {
-                Console.WriteLine("null");
-                return;
-            }
-
-            string json = AddinResponse.ToJson(response);
-            try
-            {
-                Console.WriteLine(JToken.Parse(json).ToString(Formatting.Indented));
-            }
-            catch (Exception)
-            {
-                Console.WriteLine(json);
-            }
-        }
-
-        private static MethodInfo FindMethod(string methodName, object[] arguments)
-        {
-            foreach (MethodInfo candidate in agentType.GetMethods(
-                BindingFlags.Public | BindingFlags.Instance))
-            {
-                if (!String.Equals(candidate.Name, methodName, StringComparison.Ordinal) ||
-                    candidate.GetParameters().Length != arguments.Length)
-                    continue;
-                ParameterInfo[] parameters = candidate.GetParameters();
-                bool matches = true;
-                for (int index = 0; index < parameters.Length; index++)
-                {
-                    if (arguments[index] == null)
-                    {
-                        if (parameters[index].ParameterType.IsValueType) matches = false;
-                    }
-                    else if (!parameters[index].ParameterType.IsAssignableFrom(arguments[index].GetType()))
-                    {
-                        matches = false;
-                    }
-                }
-                if (matches) return candidate;
-            }
-            return null;
-        }
-
-        private static void EnsureChargeSupported(object response, BatteryChargeModeType mode)
-        {
-            string supported = AddinResponse.ReadSetting(
-                response,
-                "Supported-BatteryChargeMode",
-                "SupportedBatteryChargeMode",
-                "BatteryChargeModeSupported");
+            string supported = AddinResponse.ReadSetting(response, "Supported-BatteryChargeMode", "SupportedBatteryChargeMode", "BatteryChargeModeSupported");
             string[] aliases;
             switch (mode)
             {
-                case BatteryChargeModeType.Normal:
-                    aliases = new[] { "Normal", "Standard", "Regular" };
-                    break;
-                case BatteryChargeModeType.Storage:
-                    aliases = new[] { "Storage", "Conservation", "BatteryConservation", "LongLife" };
-                    break;
-                default:
-                    aliases = new[] { "Quick", "Express", "Rapid", "RapidCharge" };
-                    break;
+                case ChargeMode.Storage: aliases = new[] { "Storage", "Conservation", "BatteryConservation", "LongLife" }; break;
+                case ChargeMode.Quick: aliases = new[] { "Quick", "Express", "Rapid", "RapidCharge" }; break;
+                default: aliases = new[] { "Normal", "Standard", "Regular" }; break;
             }
             if (!CapabilityNames.Matches(supported, aliases))
-                throw new InvalidOperationException(
-                    "设备未报告支持该充电模式（Supported-BatteryChargeMode=" +
-                    (String.IsNullOrWhiteSpace(supported) ? "未报告" : supported) + "）。");
+                throw new InvalidOperationException("设备未报告支持该充电模式（Supported-BatteryChargeMode=" + (String.IsNullOrWhiteSpace(supported) ? "未报告" : supported) + "）。");
         }
 
-        private static void EnsurePerformanceSupported(object response, ItsModeType mode)
+        private static void EnsurePerformanceSupported(object response, PerformanceMode mode)
         {
-            string supported = AddinResponse.ReadSetting(
-                response,
-                "Supported-ITSMode",
-                "SupportedITSMode",
-                "ITSModeSupported");
+            string supported = AddinResponse.ReadSetting(response, "Supported-ITSMode", "SupportedITSMode", "ITSModeSupported");
             string[] aliases;
             switch (mode)
             {
-                case ItsModeType.ItsAuto:
-                    aliases = new[] { "ITS_Auto", "MMC_Auto", "MMC_Balance", "Auto", "Balance", "Balanced", "Smart", "IntelligentCooling" };
-                    break;
-                case ItsModeType.MmcCool:
-                    aliases = new[] { "MMC_Cool", "MMC_Quiet", "Quiet", "Silent", "Cool", "Bsm_Quiet", "BatterySaving", "EnergySaving" };
-                    break;
-                case ItsModeType.MmcPerformance:
-                    aliases = new[] { "MMC_Performance", "MMC_Extreme", "Performance", "Extreme", "Turbo" };
-                    break;
-                default:
-                    aliases = new[] { "MMC_Geek", "Geek", "Creator", "Creative" };
-                    break;
+                case PerformanceMode.Auto: aliases = new[] { "ITS_Auto", "MMC_Auto", "MMC_Balance", "Auto", "Balance", "Balanced", "Smart", "IntelligentCooling" }; break;
+                case PerformanceMode.Cool: aliases = new[] { "MMC_Cool", "MMC_Quiet", "Quiet", "Silent", "Cool", "Bsm_Quiet", "BatterySaving", "EnergySaving" }; break;
+                case PerformanceMode.Performance: aliases = new[] { "MMC_Performance", "MMC_Extreme", "Performance", "Extreme", "Turbo" }; break;
+                default: aliases = new[] { "MMC_Geek", "Geek", "Creator", "Creative" }; break;
             }
             if (!CapabilityNames.Matches(supported, aliases))
-                throw new InvalidOperationException(
-                    "设备未报告支持该性能模式（Supported-ITSMode=" +
-                    (String.IsNullOrWhiteSpace(supported) ? "未报告" : supported) + "）。");
+                throw new InvalidOperationException("设备未报告支持该性能模式（Supported-ITSMode=" + (String.IsNullOrWhiteSpace(supported) ? "未报告" : supported) + "）。");
         }
 
         private static void EnsureResponseSuccess(object response, string feature)
         {
             if (!AddinResponse.IsSuccess(response))
-                throw new InvalidOperationException(
-                    feature + "设置被设备拒绝（ErrorCode=" +
-                    (AddinResponse.ErrorCode(response) ?? "未知") + "）。");
+                throw new InvalidOperationException(feature + "设置被设备拒绝（ErrorCode=" + (AddinResponse.ErrorCode(response) ?? "未知") + "）。");
         }
 
         private static int ShowDiagnostics()
         {
-            string path = AddinLocator.FindAssembly();
-            Console.WriteLine("LenovoSettingsDemo diagnostics");
+            Console.WriteLine("EnergyControl for Lenovo diagnostics");
             Console.WriteLine("OS architecture: " + (Environment.Is64BitOperatingSystem ? "x64" : "x86"));
             Console.WriteLine("Process architecture: " + (Environment.Is64BitProcess ? "x64" : "x86"));
             Console.WriteLine("Hardware: " + AddinLocator.HardwareSummary());
-            Console.WriteLine("IdeaNotebookAddin: " + AddinLocator.DescribeAssembly(path));
-            Console.WriteLine("Charge threshold RPC: " +
-                ChargeThresholdClient.DescribeAvailability());
+            Console.WriteLine("IdeaNotebookAddin: " + AddinLocator.DescribeAssembly(AddinLocator.FindAssembly()));
+            Console.WriteLine("Charge threshold RPC: " + ChargeThresholdClient.DescribeAvailability());
+            bool directAvailable = false;
             try
             {
                 DirectChargeState direct = directChargeClient.Read();
-                Console.WriteLine("Direct charge driver: available (" +
-                    EnergyDriverChargeClient.DescribeProtocol() + ")");
-                Console.WriteLine("Direct charge flags: 0x" +
-                    direct.RawFlags.ToString("X8") + ", mode=" + direct.Mode +
-                    ", storage80=" + direct.Storage80Capable);
+                directAvailable = true;
+                Console.WriteLine("Direct charge driver: available (" + EnergyDriverChargeClient.DescribeProtocol() + ")");
+                Console.WriteLine("Direct charge flags: 0x" + direct.RawFlags.ToString("X8") + ", mode=" + direct.Mode + ", storage80=" + direct.Storage80Capable);
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Direct charge driver: unavailable - " +
-                    RootMessage(ex));
-            }
-            if (String.IsNullOrWhiteSpace(path))
-            {
-                Console.WriteLine("Result: unsupported (Lenovo Addin not installed)");
-                return 1;
-            }
+            catch (Exception ex) { Console.WriteLine("Direct charge driver: unavailable - " + RootMessage(ex)); }
             try
             {
-                EnsureAgent();
-                Console.WriteLine("Agent: " + agentType.FullName);
-                Console.WriteLine("GetBatteryChargeMode: " + (FindMethod("GetBatteryChargeMode", new object[0]) != null ? "yes" : "no"));
-                Console.WriteLine("GetITSMode: " + (FindMethod("GetITSMode", new object[] { PowerReadRequest() }) != null ? "yes" : "no"));
-                Console.WriteLine("Result: Addin loaded; run status for device capabilities");
-                return 0;
+                Console.WriteLine("Agent: " + optionalClient.AgentDescription);
+                Console.WriteLine("GetBatteryChargeMode: " + (optionalClient.HasMethod("GetBatteryChargeMode") ? "yes" : "no"));
+                Console.WriteLine("GetITSMode: " + (optionalClient.HasMethod("GetITSMode") ? "yes" : "no"));
             }
-            catch (Exception ex)
-            {
-                Console.WriteLine("Result: load failed - " + RootMessage(ex));
-                return 1;
-            }
+            catch (Exception ex) { Console.WriteLine("Optional Addin: unavailable - " + RootMessage(ex)); }
+            Console.WriteLine("Result: " + (directAvailable ? "direct stable path available" : "no stable direct path detected"));
+            return directAvailable ? 0 : 1;
+        }
+
+        private static void PrintResponse(object response)
+        {
+            if (response == null) { Console.WriteLine("null"); return; }
+            string json = AddinResponse.ToJson(response);
+            try { Console.WriteLine(JsonSupport.Serialize(JsonSupport.Deserialize(json), true)); }
+            catch { Console.WriteLine(json); }
         }
 
         private static string RootMessage(Exception exception)
@@ -548,16 +322,13 @@ namespace LenovoSettingsDemo
 
         private static void RequireApply(string[] args)
         {
-            foreach (string arg in args)
-                if (EqualsArg(arg, "--apply")) return;
-            throw new InvalidOperationException(
-                "Write operation blocked. Re-run with --apply after checking the requested mode.");
+            foreach (string arg in args) if (EqualsArg(arg, "--apply")) return;
+            throw new InvalidOperationException("Write operation blocked. Re-run with --apply after checking the requested mode.");
         }
 
         private static int InvalidMode(string category)
         {
-            Console.Error.WriteLine(
-                "Unsupported " + category + " mode. Run with --help to see valid modes.");
+            Console.Error.WriteLine("Unsupported " + category + " mode. Run with --help to see valid modes.");
             return 2;
         }
 
@@ -568,28 +339,22 @@ namespace LenovoSettingsDemo
 
         private static void PrintUsage()
         {
-            Console.WriteLine(
-                "LenovoSettingsDemo - direct Lenovo charge driver and Addin controls");
+            Console.WriteLine("EnergyControl for Lenovo - unofficial Windows 10/11 x64 utility");
             Console.WriteLine();
             Console.WriteLine("Read-only:");
-            Console.WriteLine("  LenovoSettingsDemo.exe status");
-            Console.WriteLine("  LenovoSettingsDemo.exe charge get");
-            Console.WriteLine("  LenovoSettingsDemo.exe charge direct get");
-            Console.WriteLine("  LenovoSettingsDemo.exe charge threshold get");
-            Console.WriteLine("  LenovoSettingsDemo.exe performance get");
-            Console.WriteLine("  LenovoSettingsDemo.exe diagnose");
+            Console.WriteLine("  EnergyControl.exe status");
+            Console.WriteLine("  EnergyControl.exe charge get");
+            Console.WriteLine("  EnergyControl.exe charge direct get");
+            Console.WriteLine("  EnergyControl.exe charge threshold get");
+            Console.WriteLine("  EnergyControl.exe performance get");
+            Console.WriteLine("  EnergyControl.exe diagnose");
             Console.WriteLine();
             Console.WriteLine("Writes (explicit --apply required):");
-            Console.WriteLine(
-                "  LenovoSettingsDemo.exe charge set normal|conservation|express --apply");
-            Console.WriteLine(
-                "  LenovoSettingsDemo.exe charge direct set normal|conservation|express --apply");
-            Console.WriteLine(
-                "  LenovoSettingsDemo.exe charge threshold set <start-percent> <stop-percent> --apply");
-            Console.WriteLine(
-                "  LenovoSettingsDemo.exe performance set auto|quiet|performance|geek --apply");
-            Console.WriteLine(
-                "  LenovoSettingsDemo.exe performance auto-transition on|off --apply");
+            Console.WriteLine("  EnergyControl.exe charge set normal|conservation|express --apply");
+            Console.WriteLine("  EnergyControl.exe charge direct set normal|conservation|express --apply");
+            Console.WriteLine("  EnergyControl.exe charge threshold set <start-percent> <stop-percent> --apply");
+            Console.WriteLine("  EnergyControl.exe performance set auto|quiet|performance|geek --apply");
+            Console.WriteLine("  EnergyControl.exe performance auto-transition on|off --apply");
         }
     }
 }
