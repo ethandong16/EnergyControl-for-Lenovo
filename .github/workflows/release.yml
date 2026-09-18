@@ -28,7 +28,7 @@ jobs:
           $stage = Join-Path $PWD 'release-stage'
           New-Item -ItemType Directory -Path $stage -Force | Out-Null
           Copy-Item .\artifacts\publish\EnergyControl.exe $stage
-          Copy-Item .\README.md, .\LICENSE, .\CHANGELOG.md, .\DISCLAIMER.md $stage
+          Copy-Item .\README.md, .\README.zh-CN.md, .\LICENSE, .\CHANGELOG.md, .\DISCLAIMER.md $stage
           $forbidden = Get-ChildItem $stage -Recurse -File | Where-Object {
             $_.Name -match 'Lenovo|Newtonsoft|Contract|Addin|\.pdb$|\.log$'
           }
