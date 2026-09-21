@@ -72,12 +72,19 @@ if ($parsedSettings['KeyboardBacklightStatus'] -ne 'Level_2') {
     throw 'Keyboard backlight response parsing failed'
 }
 $backlightClient = [Activator]::CreateInstance($backlightClientType, $true)
-$createRequest = $backlightClientType.GetMethod('CreateStatusRequest', $flags)
-$request = $createRequest.Invoke($backlightClient, [object[]]@($level2))
-$requestList = $request.GetType().GetProperty('List').GetValue($request, $null)
-$requestItems = $requestList.GetType().GetProperty('Items').GetValue($requestList, $null)
-if (@($requestItems).Count -ne 1 -or $requestItems[0].value -ne 'Level_2') {
-    throw 'KeyboardSettingsRequest construction failed'
+$locatorType = $asm.GetType('LenovoSettingsCompat.AddinLocator', $true)
+$findAddin = $locatorType.GetMethod('FindAssembly', $flags)
+$addinPath = $findAddin.Invoke($null, $null)
+if ([String]::IsNullOrWhiteSpace($addinPath)) {
+    Write-Host 'KeyboardSettingsRequest construction: SKIP (Lenovo Addin not installed on CI runner)'
+} else {
+    $createRequest = $backlightClientType.GetMethod('CreateStatusRequest', $flags)
+    $request = $createRequest.Invoke($backlightClient, [object[]]@($level2))
+    $requestList = $request.GetType().GetProperty('List').GetValue($request, $null)
+    $requestItems = $requestList.GetType().GetProperty('Items').GetValue($requestList, $null)
+    if (@($requestItems).Count -ne 1 -or $requestItems[0].value -ne 'Level_2') {
+        throw 'KeyboardSettingsRequest construction failed'
+    }
 }
 
 $references = $asm.GetReferencedAssemblies() | ForEach-Object { $_.Name }
