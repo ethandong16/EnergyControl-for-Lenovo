@@ -16,6 +16,9 @@ $clientType = $asm.GetType('LenovoSettingsCompat.EnergyDriverChargeClient', $tru
 $modeType = $asm.GetType('LenovoSettingsCompat.DirectChargeMode', $true)
 $responseType = $asm.GetType('LenovoSettingsCompat.AddinResponse', $true)
 $thresholdType = $asm.GetType('LenovoSettingsCompat.ChargeThresholdClient', $true)
+$backlightNamesType = $asm.GetType('LenovoSettingsCompat.KeyboardBacklightNames', $true)
+$backlightResponseType = $asm.GetType('LenovoSettingsCompat.KeyboardBacklightResponse', $true)
+$backlightClientType = $asm.GetType('LenovoSettingsCompat.LenovoKeyboardBacklightClient', $true)
 
 function Get-Mode([string]$name) { [Enum]::Parse($modeType, $name) }
 function Get-Commands($state, [string]$name) {
@@ -45,6 +48,38 @@ $rejected = $false
 try { $validate.Invoke($null, [object[]]@(80, 75)) | Out-Null } catch { $rejected = $true }
 if (-not $rejected) { throw 'Invalid threshold order was accepted' }
 
+$toContract = $backlightNamesType.GetMethod('ToContractValue', $flags)
+$tryParse = $backlightNamesType.GetMethod('TryParse', $flags)
+$levelType = $asm.GetType('LenovoSettingsCompat.KeyboardBacklightLevel', $true)
+$level2 = [Enum]::Parse($levelType, 'Level2')
+if ($toContract.Invoke($null, [object[]]@($level2)) -ne 'Level_2') {
+    throw 'Keyboard backlight contract mapping failed'
+}
+$parseArgs = [object[]]@('level1', [Enum]::Parse($levelType, 'Off'))
+if (-not $tryParse.Invoke($null, $parseArgs) -or $parseArgs[1].ToString() -ne 'Level1') {
+    throw 'Keyboard backlight CLI name parsing failed'
+}
+$sampleBacklight = @{
+    List = @{
+        Items = @(
+            @{ key = 'KeyboardBacklightStatus'; value = 'Level_2'; errorCode = 'Success' }
+        )
+    }
+}
+$readSettings = $backlightResponseType.GetMethod('ReadSettings', $flags)
+$parsedSettings = $readSettings.Invoke($null, [object[]]@($sampleBacklight))
+if ($parsedSettings['KeyboardBacklightStatus'] -ne 'Level_2') {
+    throw 'Keyboard backlight response parsing failed'
+}
+$backlightClient = [Activator]::CreateInstance($backlightClientType, $true)
+$createRequest = $backlightClientType.GetMethod('CreateStatusRequest', $flags)
+$request = $createRequest.Invoke($backlightClient, [object[]]@($level2))
+$requestList = $request.GetType().GetProperty('List').GetValue($request, $null)
+$requestItems = $requestList.GetType().GetProperty('Items').GetValue($requestList, $null)
+if (@($requestItems).Count -ne 1 -or $requestItems[0].value -ne 'Level_2') {
+    throw 'KeyboardSettingsRequest construction failed'
+}
+
 $references = $asm.GetReferencedAssemblies() | ForEach-Object { $_.Name }
 foreach ($forbidden in @('Newtonsoft.Json', 'BatteryManagementContract', 'PowerContract', 'IdeaNotebookAddin', 'Lenovo.Vantage.PowerRpcClient')) {
     if ($references -contains $forbidden) { throw "Forbidden assembly reference found: $forbidden" }
@@ -59,6 +94,9 @@ try {
     if ($LASTEXITCODE -ne 1) { throw "Missing --apply check returned $LASTEXITCODE" }
     & $Executable help | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'CLI help smoke test failed' }
+    & $Executable keyboard-backlight set level1
+    if ($LASTEXITCODE -ne 1) { throw 'Keyboard backlight --apply check failed' }
+    $global:LASTEXITCODE = 0
 } finally {
     $env:LENOVO_SETTINGS_ADDIN_PATH = $previousAddin
     $env:LENOVO_POWER_RPC_PATH = $previousRpc

@@ -11,7 +11,7 @@ EnergyControl for Lenovo is an unofficial, community-maintained Windows utility 
 ## Features
 
 - **Stable:** direct charging control through the installed Windows driver (`EnergyDrv`).
-- **Experimental:** performance modes and custom start/stop percentage thresholds.
+- **Experimental:** performance modes, custom start/stop percentage thresholds, and Lenovo keyboard backlight controls.
 - A single portable `EnergyControl.exe`: double-click it for the GUI or pass arguments for CLI mode.
 - No telemetry, background service, installer, automatic updater, or startup task.
 - Lenovo Vantage and Commercial Vantage components are optional runtime integrations only.
@@ -39,11 +39,17 @@ EnergyControl.exe diagnose
 EnergyControl.exe charge direct get
 EnergyControl.exe charge threshold get
 EnergyControl.exe performance get
+EnergyControl.exe keyboard-backlight get
+EnergyControl.exe keyboard-backlight capability
 
 # Every write requires the explicit safety flag:
 EnergyControl.exe charge direct set conservation --apply
 EnergyControl.exe charge threshold set 75 80 --apply
 EnergyControl.exe performance set performance --apply
+EnergyControl.exe keyboard-backlight set level1 --apply
+EnergyControl.exe keyboard-backlight reserve on --apply
+EnergyControl.exe keyboard-backlight auto-dim on --apply
+EnergyControl.exe keyboard-backlight restore-default --apply
 ```
 
 Without `--apply`, a write command exits before opening a driver write path or invoking an optional setter.
@@ -52,6 +58,7 @@ Without `--apply`, a write command exits before opening a driver write path or i
 
 - Firmware conservation mode is not the same as an arbitrary percentage threshold. A device may expose a fixed 80% maintenance mode without supporting custom values such as 75–85%.
 - Optional Vantage or Power RPC features may be unavailable, return RPC error `1722`, or be rejected by firmware. These failures do not disable the direct charging path.
+- Keyboard backlight controls use the installed `IdeaNotebookAddin` from Lenovo Vantage or Lenovo Baiying. Supported levels and write methods vary by model and firmware; `auto-dim` is only enabled when the device reports that capability.
 - Driver writes can affect battery behavior. Run read-only diagnostics first and review the GUI confirmation before applying a change.
 - This project is not Lenovo software, is not endorsed by Lenovo, and does not use a Lenovo logo or distribute Lenovo private components.
 

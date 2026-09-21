@@ -47,6 +47,14 @@ namespace LenovoSettingsGui
         public string ChargeLimitInfo;
         public string ThresholdError;
         public string PerformanceError;
+        public string KeyboardBacklightStatus;
+        public string KeyboardBacklightLevelCapability;
+        public string KeyboardBacklightReserve;
+        public string KeyboardBacklightAutoDimCapability;
+        public string KeyboardBacklightAutoDimStatus;
+        public string KeyboardBacklightTimeout;
+        public string KeyboardBacklightError;
+        public string KeyboardBacklightAgent;
         public string AddinInfo;
         public bool ChargeWritable;
         public bool ThresholdCapable;
@@ -55,6 +63,10 @@ namespace LenovoSettingsGui
         public int ThresholdStart;
         public int ThresholdStop;
         public bool PerformanceWritable;
+        public bool KeyboardBacklightSupported;
+        public bool KeyboardBacklightWritable;
+        public bool KeyboardBacklightReserveWritable;
+        public bool KeyboardBacklightAutoDimWritable;
     }
 
     internal sealed class LenovoAddinClient
@@ -62,6 +74,7 @@ namespace LenovoSettingsGui
         private readonly LenovoOptionalFeaturesClient optionalClient = new LenovoOptionalFeaturesClient();
         private readonly ChargeThresholdClient thresholdClient = new ChargeThresholdClient();
         private readonly EnergyDriverChargeClient directChargeClient = new EnergyDriverChargeClient();
+        private readonly LenovoKeyboardBacklightClient keyboardBacklightClient = new LenovoKeyboardBacklightClient();
         private bool directChargeActive;
 
         public DeviceState ReadState()
@@ -126,6 +139,23 @@ namespace LenovoSettingsGui
                 state.PerformanceWritable = optionalClient.HasMethod("SetITSMode");
             }
             catch (Exception ex) { state.PerformanceError = RootMessage(ex); }
+            try
+            {
+                KeyboardBacklightState backlight = keyboardBacklightClient.Read();
+                state.KeyboardBacklightSupported = backlight.IsSupported;
+                state.KeyboardBacklightWritable = backlight.IsWritable;
+                state.KeyboardBacklightReserveWritable = backlight.CanReserve;
+                state.KeyboardBacklightAutoDimWritable = backlight.CanAutoDim;
+                state.KeyboardBacklightStatus = backlight.Status;
+                state.KeyboardBacklightLevelCapability = backlight.LevelCapability;
+                state.KeyboardBacklightReserve = backlight.Reserve;
+                state.KeyboardBacklightAutoDimCapability = backlight.AutoDimCapability;
+                state.KeyboardBacklightAutoDimStatus = backlight.AutoDimStatus;
+                state.KeyboardBacklightTimeout = backlight.Timeout;
+                state.KeyboardBacklightError = backlight.Error;
+                state.KeyboardBacklightAgent = backlight.AgentInfo;
+            }
+            catch (Exception ex) { state.KeyboardBacklightError = RootMessage(ex); }
             return state;
         }
 
@@ -148,6 +178,26 @@ namespace LenovoSettingsGui
 
         public void SetThreshold(int startValue, int stopValue) { thresholdClient.Set(0, startValue, stopValue); }
 
+        public object SetKeyboardBacklight(KeyboardBacklightLevel level)
+        {
+            return keyboardBacklightClient.SetLevel(level);
+        }
+
+        public object SetKeyboardBacklightReserve(bool enabled)
+        {
+            return keyboardBacklightClient.SetReserve(enabled);
+        }
+
+        public object SetKeyboardBacklightAutoDim(bool enabled)
+        {
+            return keyboardBacklightClient.SetAutoDim(enabled);
+        }
+
+        public object RestoreKeyboardBacklightDefault()
+        {
+            return keyboardBacklightClient.RestoreDefault();
+        }
+
         private static string RootMessage(Exception exception)
         {
             Exception cause = exception;
@@ -161,6 +211,8 @@ namespace LenovoSettingsGui
         private readonly LenovoAddinClient client = new LenovoAddinClient();
         private readonly FlowLayoutPanel chargeModes = new FlowLayoutPanel();
         private readonly FlowLayoutPanel performanceModes = new FlowLayoutPanel();
+        private readonly FlowLayoutPanel keyboardBacklightModes = new FlowLayoutPanel();
+        private readonly FlowLayoutPanel keyboardBacklightActions = new FlowLayoutPanel();
         private readonly Label chargeCurrent = new Label();
         private readonly Label chargeSupported = new Label();
         private readonly Label thresholdCurrent = new Label();
@@ -171,6 +223,11 @@ namespace LenovoSettingsGui
         private readonly Button thresholdApply = new Button();
         private readonly Label performanceCurrent = new Label();
         private readonly Label performanceSupported = new Label();
+        private readonly Label keyboardBacklightCurrent = new Label();
+        private readonly Label keyboardBacklightSupported = new Label();
+        private readonly Button keyboardBacklightReserveButton = new Button();
+        private readonly Button keyboardBacklightAutoDimButton = new Button();
+        private readonly Button keyboardBacklightDefaultButton = new Button();
         private readonly Label driverValue = new Label();
         private readonly Label statusLabel = new Label();
         private readonly Button refreshButton = new Button();
@@ -205,6 +262,14 @@ namespace LenovoSettingsGui
                 "MMC_Extreme", "Performance", "Extreme", "Turbo"),
             new ModeItem("极客模式", "MMC_Geek", PerformanceMode.Geek,
                 "Geek", "Creator", "Creative")
+        };
+
+        private static readonly ModeItem[] AllKeyboardBacklightModes =
+        {
+            new ModeItem("关闭", "Off", KeyboardBacklightLevel.Off),
+            new ModeItem("一级亮度", "Level_1", KeyboardBacklightLevel.Level1, "OneLevel"),
+            new ModeItem("二级亮度", "Level_2", KeyboardBacklightLevel.Level2, "TwoLevels"),
+            new ModeItem("自动", "Auto", KeyboardBacklightLevel.Auto, "TwoLevelsAuto")
         };
 
         public MainForm()
@@ -278,7 +343,8 @@ namespace LenovoSettingsGui
             page.AutoScroll = true;
             page.Padding = new Padding(24, 16, 24, 16);
             page.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-            page.RowCount = 5;
+            page.RowCount = 6;
+            page.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             page.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             page.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             page.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -332,6 +398,7 @@ namespace LenovoSettingsGui
             page.Controls.Add(CreateThresholdCard(), 0, 2);
             page.Controls.Add(CreateCard("性能管理 · 实验", performanceCurrent,
                 performanceSupported, performanceModes), 0, 3);
+            page.Controls.Add(CreateKeyboardBacklightCard(), 0, 4);
 
             var footer = AutoTable(2);
             footer.Margin = new Padding(0, 8, 0, 0);
@@ -345,8 +412,86 @@ namespace LenovoSettingsGui
             statusLabel.Anchor = AnchorStyles.Right;
             footer.Controls.Add(driverValue, 0, 0);
             footer.Controls.Add(statusLabel, 1, 0);
-            page.Controls.Add(footer, 0, 4);
+            page.Controls.Add(footer, 0, 5);
             Controls.Add(page);
+        }
+
+        private TableLayoutPanel CreateKeyboardBacklightCard()
+        {
+            var card = AutoTable(1);
+            card.BackColor = Color.White;
+            card.Padding = new Padding(18);
+            card.Margin = new Padding(0, 0, 0, 10);
+            card.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+            card.RowCount = 5;
+            for (int index = 0; index < 5; index++)
+                card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+            card.Controls.Add(new Label
+            {
+                Text = "键盘背光 · 实验",
+                AutoSize = true,
+                Font = new Font(Font.FontFamily, 12F, FontStyle.Bold),
+                Margin = new Padding(0, 0, 0, 9)
+            }, 0, 0);
+
+            keyboardBacklightCurrent.Text = "当前：读取中…";
+            keyboardBacklightCurrent.AutoSize = true;
+            keyboardBacklightCurrent.Margin = new Padding(0, 0, 0, 5);
+            card.Controls.Add(keyboardBacklightCurrent, 0, 1);
+
+            keyboardBacklightSupported.Text = "支持：读取中…";
+            keyboardBacklightSupported.AutoSize = true;
+            keyboardBacklightSupported.ForeColor = Color.FromArgb(100, 110, 125);
+            keyboardBacklightSupported.Margin = new Padding(0, 0, 0, 10);
+            card.Controls.Add(keyboardBacklightSupported, 0, 2);
+
+            keyboardBacklightModes.AutoSize = true;
+            keyboardBacklightModes.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            keyboardBacklightModes.Dock = DockStyle.Top;
+            keyboardBacklightModes.WrapContents = true;
+            keyboardBacklightModes.Margin = Padding.Empty;
+            keyboardBacklightModes.Padding = Padding.Empty;
+            keyboardBacklightModes.AccessibleName = "键盘背光亮度选项";
+            card.Controls.Add(keyboardBacklightModes, 0, 3);
+
+            keyboardBacklightActions.AutoSize = true;
+            keyboardBacklightActions.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+            keyboardBacklightActions.Dock = DockStyle.Top;
+            keyboardBacklightActions.WrapContents = true;
+            keyboardBacklightActions.Margin = Padding.Empty;
+            keyboardBacklightActions.Padding = Padding.Empty;
+            StyleButton(keyboardBacklightReserveButton, "切换保留状态", false);
+            StyleButton(keyboardBacklightAutoDimButton, "切换自动调暗", false);
+            StyleButton(keyboardBacklightDefaultButton, "恢复默认", false);
+            keyboardBacklightReserveButton.Margin = new Padding(0, 0, 10, 8);
+            keyboardBacklightAutoDimButton.Margin = new Padding(0, 0, 10, 8);
+            keyboardBacklightDefaultButton.Margin = new Padding(0, 0, 10, 8);
+            keyboardBacklightReserveButton.Click += async delegate
+            {
+                if (busy) return;
+                if (MessageBox.Show(this, "确认切换键盘背光保留状态吗？", "确认设置",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                await ApplyKeyboardBacklightReserveAsync(!IsTrue(keyboardBacklightReserveButton.Tag));
+            };
+            keyboardBacklightAutoDimButton.Click += async delegate
+            {
+                if (busy) return;
+                if (MessageBox.Show(this, "确认切换键盘背光自动调暗吗？", "确认设置",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                await ApplyKeyboardBacklightAutoDimAsync(!IsTrue(keyboardBacklightAutoDimButton.Tag));
+            };
+            keyboardBacklightDefaultButton.Click += async delegate
+            {
+                if (busy) return;
+                if (MessageBox.Show(this, "确认恢复键盘背光默认设置吗？", "确认设置",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                await RestoreKeyboardBacklightDefaultAsync();
+            };
+            keyboardBacklightActions.Controls.Add(keyboardBacklightReserveButton);
+            keyboardBacklightActions.Controls.Add(keyboardBacklightAutoDimButton);
+            keyboardBacklightActions.Controls.Add(keyboardBacklightDefaultButton);
+            card.Controls.Add(keyboardBacklightActions, 0, 4);
+            return card;
         }
 
         private TableLayoutPanel CreateThresholdCard()
@@ -641,6 +786,131 @@ namespace LenovoSettingsGui
             }
         }
 
+        private async Task ApplyKeyboardBacklightAsync(ModeItem selected)
+        {
+            if (selected == null) return;
+            SetBusy(true, "正在应用...");
+            try
+            {
+                DeviceState state = await Task.Run(() =>
+                {
+                    DeviceState before = client.ReadState();
+                    if (!before.KeyboardBacklightSupported ||
+                        !before.KeyboardBacklightWritable ||
+                        !SupportsKeyboardBacklightMode(before.KeyboardBacklightLevelCapability, selected))
+                        throw new InvalidOperationException("设备当前不支持该键盘背光档位，请刷新后重试。");
+                    object response = client.SetKeyboardBacklight(
+                        (KeyboardBacklightLevel)selected.Value);
+                    EnsureKeyboardResponseSuccess(response, "键盘背光");
+                    DeviceState result = client.ReadState();
+                    if (!IsCurrent(selected, result.KeyboardBacklightStatus))
+                        throw new InvalidOperationException(
+                            "设备未接受该设置，当前为 " +
+                            KeyboardBacklightNames.DisplayName(result.KeyboardBacklightStatus) + "。");
+                    return result;
+                });
+                DisplayState(state);
+                SetStatus("键盘背光已更新", Color.FromArgb(30, 125, 78));
+            }
+            catch (Exception ex)
+            {
+                ShowError("设置键盘背光失败", ex);
+            }
+            finally
+            {
+                SetBusy(false, null);
+            }
+        }
+
+        private async Task ApplyKeyboardBacklightReserveAsync(bool enabled)
+        {
+            SetBusy(true, "正在应用...");
+            try
+            {
+                DeviceState state = await Task.Run(() =>
+                {
+                    DeviceState before = client.ReadState();
+                    if (!before.KeyboardBacklightSupported ||
+                        !before.KeyboardBacklightReserveWritable)
+                        throw new InvalidOperationException("设备当前不支持键盘背光保留状态。");
+                    object response = client.SetKeyboardBacklightReserve(enabled);
+                    EnsureKeyboardResponseSuccess(response, "键盘背光保留状态");
+                    DeviceState result = client.ReadState();
+                    if (!IsBooleanValue(result.KeyboardBacklightReserve, enabled))
+                        throw new InvalidOperationException("设备未接受键盘背光保留状态设置。");
+                    return result;
+                });
+                DisplayState(state);
+                SetStatus("键盘背光保留状态已更新", Color.FromArgb(30, 125, 78));
+            }
+            catch (Exception ex)
+            {
+                ShowError("设置键盘背光保留状态失败", ex);
+            }
+            finally
+            {
+                SetBusy(false, null);
+            }
+        }
+
+        private async Task ApplyKeyboardBacklightAutoDimAsync(bool enabled)
+        {
+            SetBusy(true, "正在应用...");
+            try
+            {
+                DeviceState state = await Task.Run(() =>
+                {
+                    DeviceState before = client.ReadState();
+                    if (!before.KeyboardBacklightSupported ||
+                        !before.KeyboardBacklightAutoDimWritable)
+                        throw new InvalidOperationException("设备当前不支持键盘背光自动调暗。");
+                    object response = client.SetKeyboardBacklightAutoDim(enabled);
+                    EnsureKeyboardResponseSuccess(response, "键盘背光自动调暗");
+                    DeviceState result = client.ReadState();
+                    if (!IsBooleanValue(result.KeyboardBacklightAutoDimStatus, enabled))
+                        throw new InvalidOperationException("设备未接受键盘背光自动调暗设置。");
+                    return result;
+                });
+                DisplayState(state);
+                SetStatus("键盘背光自动调暗已更新", Color.FromArgb(30, 125, 78));
+            }
+            catch (Exception ex)
+            {
+                ShowError("设置键盘背光自动调暗失败", ex);
+            }
+            finally
+            {
+                SetBusy(false, null);
+            }
+        }
+
+        private async Task RestoreKeyboardBacklightDefaultAsync()
+        {
+            SetBusy(true, "正在应用...");
+            try
+            {
+                DeviceState state = await Task.Run(() =>
+                {
+                    DeviceState before = client.ReadState();
+                    if (!before.KeyboardBacklightSupported || !before.KeyboardBacklightWritable)
+                        throw new InvalidOperationException("设备当前不支持恢复键盘背光默认设置。");
+                    object response = client.RestoreKeyboardBacklightDefault();
+                    EnsureKeyboardResponseSuccess(response, "键盘背光恢复默认");
+                    return client.ReadState();
+                });
+                DisplayState(state);
+                SetStatus("键盘背光已恢复默认", Color.FromArgb(30, 125, 78));
+            }
+            catch (Exception ex)
+            {
+                ShowError("恢复键盘背光默认设置失败", ex);
+            }
+            finally
+            {
+                SetBusy(false, null);
+            }
+        }
+
         private void DisplayState(DeviceState state)
         {
             if (state == null) return;
@@ -754,6 +1024,45 @@ namespace LenovoSettingsGui
                 performanceModes.Controls.Clear();
             }
 
+            if (String.IsNullOrWhiteSpace(state.KeyboardBacklightError) &&
+                state.KeyboardBacklightSupported)
+            {
+                keyboardBacklightCurrent.Text = "当前：" +
+                    KeyboardBacklightNames.DisplayName(state.KeyboardBacklightStatus);
+                keyboardBacklightSupported.Text =
+                    "支持：" + DisplayKeyboardBacklightSupported(state.KeyboardBacklightLevelCapability) +
+                    (state.KeyboardBacklightWritable ? "" : "（只读）") +
+                    (String.IsNullOrWhiteSpace(state.KeyboardBacklightAgent)
+                        ? ""
+                        : "  ·  " + state.KeyboardBacklightAgent);
+                FillKeyboardBacklightModes(
+                    keyboardBacklightModes,
+                    state.KeyboardBacklightLevelCapability,
+                    state.KeyboardBacklightStatus,
+                    state.KeyboardBacklightWritable);
+                keyboardBacklightReserveButton.Tag = state.KeyboardBacklightReserve;
+                keyboardBacklightReserveButton.Text = "保留状态：" +
+                    (IsTrue(state.KeyboardBacklightReserve) ? "开" : "关");
+                keyboardBacklightReserveButton.Enabled = state.KeyboardBacklightReserveWritable && !busy;
+                keyboardBacklightAutoDimButton.Tag = state.KeyboardBacklightAutoDimStatus;
+                keyboardBacklightAutoDimButton.Text = "自动调暗：" +
+                    (IsTrue(state.KeyboardBacklightAutoDimStatus) ? "开" : "关");
+                keyboardBacklightAutoDimButton.Enabled = state.KeyboardBacklightAutoDimWritable && !busy;
+                keyboardBacklightDefaultButton.Enabled = state.KeyboardBacklightWritable && !busy;
+            }
+            else
+            {
+                keyboardBacklightCurrent.Text = "当前：不可用";
+                keyboardBacklightSupported.Text = "说明：" + ShortMessage(
+                    String.IsNullOrWhiteSpace(state.KeyboardBacklightError)
+                        ? "设备未报告键盘背光能力。"
+                        : state.KeyboardBacklightError);
+                keyboardBacklightModes.Controls.Clear();
+                keyboardBacklightReserveButton.Enabled = false;
+                keyboardBacklightAutoDimButton.Enabled = false;
+                keyboardBacklightDefaultButton.Enabled = false;
+            }
+
             string driver = String.IsNullOrWhiteSpace(state.WorkingDriver)
                 ? "驱动：未知"
                 : "驱动：" + state.WorkingDriver;
@@ -812,6 +1121,43 @@ namespace LenovoSettingsGui
             }
         }
 
+        private void FillKeyboardBacklightModes(
+            FlowLayoutPanel panel, string capability, string current, bool writable)
+        {
+            panel.SuspendLayout();
+            try
+            {
+                panel.Controls.Clear();
+                if (!writable) return;
+                foreach (ModeItem item in AllKeyboardBacklightModes)
+                {
+                    if (!SupportsKeyboardBacklightMode(capability, item)) continue;
+                    Button button = new Button { Tag = item };
+                    StyleButton(button, item.DisplayName, IsCurrent(item, current));
+                    button.Anchor = AnchorStyles.Left;
+                    button.Margin = new Padding(0, 0, 10, 8);
+                    button.AccessibleName = item.DisplayName;
+                    button.Click += async delegate
+                    {
+                        if (busy) return;
+                        if (MessageBox.Show(
+                            this,
+                            "确认切换键盘背光为“" + item.DisplayName + "”吗？",
+                            "确认设置",
+                            MessageBoxButtons.YesNo,
+                            MessageBoxIcon.Question) != DialogResult.Yes)
+                            return;
+                        await ApplyKeyboardBacklightAsync((ModeItem)button.Tag);
+                    };
+                    panel.Controls.Add(button);
+                }
+            }
+            finally
+            {
+                panel.ResumeLayout(true);
+            }
+        }
+
         private static string DisplaySupported(
             ModeItem[] allModes,
             string supported)
@@ -839,6 +1185,28 @@ namespace LenovoSettingsGui
             return names.Count == 0 ? "未报告" : String.Join("、", names);
         }
 
+        private static string DisplayKeyboardBacklightSupported(string capability)
+        {
+            var names = new List<string>();
+            foreach (ModeItem item in AllKeyboardBacklightModes)
+                if (SupportsKeyboardBacklightMode(capability, item)) names.Add(item.DisplayName);
+            return names.Count == 0 ? "未报告" : String.Join("、", names);
+        }
+
+        private static bool SupportsKeyboardBacklightMode(string capability, ModeItem item)
+        {
+            if (item == null) return false;
+            if (item.ContractName == "Off") return true;
+            if (String.IsNullOrWhiteSpace(capability)) return false;
+            if (item.ContractName == "Level_1")
+                return capability.IndexOf("OneLevel", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    capability.IndexOf("TwoLevels", StringComparison.OrdinalIgnoreCase) >= 0;
+            if (item.ContractName == "Level_2")
+                return capability.IndexOf("TwoLevels", StringComparison.OrdinalIgnoreCase) >= 0;
+            return item.ContractName == "Auto" &&
+                capability.IndexOf("Auto", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
         private static string DisplayName(
             ModeItem[] allModes,
             string contractName)
@@ -860,6 +1228,28 @@ namespace LenovoSettingsGui
         {
             return item != null &&
                 CapabilityNames.Matches(supported, item.SupportedNames);
+        }
+
+        private static bool IsTrue(object value)
+        {
+            return String.Equals(
+                Convert.ToString(value), "True", StringComparison.OrdinalIgnoreCase) ||
+                String.Equals(Convert.ToString(value), "1", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static bool IsBooleanValue(string value, bool expected)
+        {
+            if (String.IsNullOrWhiteSpace(value)) return false;
+            return IsTrue(value) == expected;
+        }
+
+        private static void EnsureKeyboardResponseSuccess(object response, string feature)
+        {
+            if (response is bool && !(bool)response)
+                throw new InvalidOperationException(feature + "设置被设备拒绝。");
+            if (!KeyboardBacklightResponse.IsSuccess(response))
+                throw new InvalidOperationException(feature + "设置被设备拒绝（ErrorCode=" +
+                    KeyboardBacklightResponse.ErrorCode(response) + "）。");
         }
 
         private static string ShortMessage(string value)
@@ -920,6 +1310,9 @@ namespace LenovoSettingsGui
             thresholdControls.Enabled = !value && thresholdAvailable;
             performanceModes.Enabled =
                 !value && performanceModes.Controls.Count > 0;
+            keyboardBacklightModes.Enabled =
+                !value && keyboardBacklightModes.Controls.Count > 0;
+            keyboardBacklightActions.Enabled = !value;
             UseWaitCursor = value;
             if (message != null)
                 SetStatus(message, Color.FromArgb(80, 85, 95));

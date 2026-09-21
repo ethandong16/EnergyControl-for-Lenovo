@@ -11,7 +11,7 @@ EnergyControl for Lenovo 是一个非联想官方、由社区维护的 Windows �
 ## 功能
 
 - **稳定功能：**通过系统已安装的 Windows 驱动（`EnergyDrv`）直接控制充电模式。
-- **实验功能：**性能模式，以及自定义起充和停充百分比阈值。
+- **实验功能：**性能模式、自定义起充和停充百分比阈值，以及联想键盘背光控制。
 - 仅需一个便携版 `EnergyControl.exe`：双击进入 GUI，携带参数时进入 CLI。
 - 不包含遥测、后台服务、安装器、自动更新或开机启动任务。
 - Lenovo Vantage 和 Commercial Vantage 组件仅作为可选的运行时集成。
@@ -39,11 +39,17 @@ EnergyControl.exe diagnose
 EnergyControl.exe charge direct get
 EnergyControl.exe charge threshold get
 EnergyControl.exe performance get
+EnergyControl.exe keyboard-backlight get
+EnergyControl.exe keyboard-backlight capability
 
 # 所有写操作都必须显式提供安全参数：
 EnergyControl.exe charge direct set conservation --apply
 EnergyControl.exe charge threshold set 75 80 --apply
 EnergyControl.exe performance set performance --apply
+EnergyControl.exe keyboard-backlight set level1 --apply
+EnergyControl.exe keyboard-backlight reserve on --apply
+EnergyControl.exe keyboard-backlight auto-dim on --apply
+EnergyControl.exe keyboard-backlight restore-default --apply
 ```
 
 如果缺少 `--apply`，写命令会在打开驱动写入路径或调用可选 setter 之前终止。
@@ -52,6 +58,7 @@ EnergyControl.exe performance set performance --apply
 
 - 固件养护模式不等同于任意百分比阈值。设备可能支持固定 80% 养护，但不支持 75–85% 等自定义范围。
 - Vantage 或 Power RPC 实验功能可能不可用、返回 RPC 错误 `1722`，或被固件拒绝。这些故障不会影响直接充电路径。
+- 键盘背光控制使用 Lenovo Vantage 或联想百应安装的 `IdeaNotebookAddin`。可用档位和写入方法取决于机型与固件；只有设备报告支持自动调暗时，`auto-dim` 才会启用。
 - 驱动写入会影响电池行为。应用更改前请先运行只读诊断，并仔细确认 GUI 提示。
 - 本项目不是 Lenovo 官方软件，未获得 Lenovo 背书，不使用 Lenovo Logo，也不分发 Lenovo 私有组件。
 

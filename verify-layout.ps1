@@ -24,6 +24,11 @@ $sample = @{
         ChargeWritable=$true; PerformanceWritable=$true
         ThresholdCapable=$true; ThresholdEnabled=$true; ThresholdWritable=$true
         ThresholdStart=75; ThresholdStop=80
+        KeyboardBacklightSupported=$true; KeyboardBacklightWritable=$true
+        KeyboardBacklightReserveWritable=$true; KeyboardBacklightAutoDimWritable=$false
+        KeyboardBacklightStatus='Level_2'; KeyboardBacklightLevelCapability='TwoLevelsAuto'
+        KeyboardBacklightReserve='False'; KeyboardBacklightAutoDimCapability='False'
+        KeyboardBacklightAutoDimStatus='NoCapability'; KeyboardBacklightAgent='IdeaNotebookAddin.dll 1.0.13.79'
 }
 
 # An unavailable percentage API must collapse its editor instead of leaving
@@ -176,16 +181,24 @@ foreach ($scenario in $scenarios) {
             $chargePanel = $formType.GetField('chargeModes',$flags).GetValue($form)
             $thresholdPanel = $formType.GetField('thresholdControls',$flags).GetValue($form)
             $performancePanel = $formType.GetField('performanceModes',$flags).GetValue($form)
+            $backlightPanel = $formType.GetField('keyboardBacklightModes',$flags).GetValue($form)
+            $backlightActions = $formType.GetField('keyboardBacklightActions',$flags).GetValue($form)
             if ($chargePanel.Controls.Count -ne 3) {
                 throw ("Expected 3 charging modes, found " + $chargePanel.Controls.Count)
             }
             if ($performancePanel.Controls.Count -ne 4) {
                 throw ("Expected 4 supported performance modes, found " + $performancePanel.Controls.Count)
             }
+            if ($backlightPanel.Controls.Count -ne 4) {
+                throw ("Expected 4 supported keyboard backlight modes, found " + $backlightPanel.Controls.Count)
+            }
+            if ($backlightActions.Controls.Count -ne 3) {
+                throw ("Expected 3 keyboard backlight actions, found " + $backlightActions.Controls.Count)
+            }
             if (-not $thresholdPanel.Enabled -or $thresholdPanel.Controls.Count -ne 6) {
                 throw 'Charge threshold controls are unavailable or incomplete'
             }
-            foreach ($panel in @($chargePanel,$performancePanel)) {
+            foreach ($panel in @($chargePanel,$performancePanel,$backlightPanel)) {
                 if ($panel.AutoScroll) { throw 'Mode panel must not scroll' }
                 foreach ($button in $panel.Controls) {
                     if (-not $panel.ClientRectangle.Contains($button.Bounds)) {

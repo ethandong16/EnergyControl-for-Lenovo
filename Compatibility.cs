@@ -156,7 +156,10 @@ namespace LenovoSettingsCompat
             if (candidate.GetMethod("GetInstance", BindingFlags.Public | BindingFlags.Static) == null)
                 return false;
             return candidate.GetMethod("GetBatteryChargeMode", BindingFlags.Public | BindingFlags.Instance) != null ||
-                candidate.GetMethod("GetITSMode", BindingFlags.Public | BindingFlags.Instance) != null;
+                candidate.GetMethod("GetITSMode", BindingFlags.Public | BindingFlags.Instance) != null ||
+                candidate.GetMethod("IsSupportBacklight", BindingFlags.Public | BindingFlags.Instance) != null ||
+                candidate.GetMethod("GetBacklightStatus", BindingFlags.Public | BindingFlags.Instance) != null ||
+                candidate.GetMethod("GetKeyboardSettings", BindingFlags.Public | BindingFlags.Instance) != null;
         }
     }
 
