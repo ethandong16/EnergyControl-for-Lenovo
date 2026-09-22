@@ -43,8 +43,8 @@ namespace LenovoSettingsCompat
             get
             {
                 return Storage80Capable
-                    ? "固件固定 80%"
-                    : "固件预设（未报告固定 80% 能力）";
+                    ? UiText.Get("固件固定 80%")
+                    : UiText.Get("固件预设（未报告固定 80% 能力）");
             }
         }
     }
@@ -96,7 +96,7 @@ namespace LenovoSettingsCompat
                     break;
                 case DirectChargeMode.Quick:
                     if (!before.QuickCapable)
-                        throw new InvalidOperationException("固件未报告快充能力。");
+                        throw new InvalidOperationException(UiText.Get("固件未报告快充能力。"));
                     if (!before.QuickEnabled) commands.Add(EnableQuickCommand);
                     if (before.StorageEnabled)
                     {
@@ -172,8 +172,8 @@ namespace LenovoSettingsCompat
                     if (pollDelayMilliseconds > 0) Thread.Sleep(pollDelayMilliseconds);
                 }
                 throw new InvalidOperationException(
-                    "驱动接受了请求，但充电模式没有切换到 " + requested +
-                    "；当前为 " + after.Mode + "。不同固件可能需要重新插拔电源后生效。");
+                    UiText.Get("驱动接受了请求，但充电模式没有切换到 ") + requested +
+                    UiText.Get("；当前为 ") + after.Mode + UiText.Get("。不同固件可能需要重新插拔电源后生效。"));
             }
         }
 
@@ -200,7 +200,7 @@ namespace LenovoSettingsCompat
         private static uint Send(IEnergyDriverTransport transport, byte command)
         {
             if (!EnergyDriverProtocol.IsKnownCommand(command))
-                throw new InvalidOperationException("拒绝未列入白名单的 EnergyDrv 命令。");
+                throw new InvalidOperationException(UiText.Get("拒绝未列入白名单的 EnergyDrv 命令。"));
             return transport.Execute(command);
         }
     }
@@ -233,7 +233,7 @@ namespace LenovoSettingsCompat
                 handle.Dispose();
                 throw new Win32Exception(
                     error,
-                    "无法打开 Lenovo EnergyDrv 设备；请确认 ACPIVPC 驱动已安装");
+                    UiText.Get("无法打开 Lenovo EnergyDrv 设备；请确认 ACPIVPC 驱动已安装"));
             }
         }
 
@@ -254,10 +254,10 @@ namespace LenovoSettingsCompat
             {
                 throw new Win32Exception(
                     Marshal.GetLastWin32Error(),
-                    "EnergyDrv 命令 0x" + command.ToString("X2") + " 失败");
+                    UiText.Get("EnergyDrv 命令 0x") + command.ToString("X2") + UiText.Get(" 失败"));
             }
             if (returned != 4)
-                throw new InvalidOperationException("EnergyDrv 返回了意外的数据长度：" + returned + "。");
+                throw new InvalidOperationException(UiText.Get("EnergyDrv 返回了意外的数据长度：") + returned + UiText.Get("。"));
             return output;
         }
 

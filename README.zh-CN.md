@@ -1,12 +1,12 @@
 # EnergyControl for Lenovo
 
-[English](README.md) | 简体中文
+[English](README.md) | 简体中文 | [日本語](README.ja.md)
 
 [![CI](https://github.com/ethandong16/EnergyControl-for-Lenovo/actions/workflows/ci.yml/badge.svg)](https://github.com/ethandong16/EnergyControl-for-Lenovo/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/ethandong16/EnergyControl-for-Lenovo?include_prereleases)](https://github.com/ethandong16/EnergyControl-for-Lenovo/releases)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
-用于兼容联想笔记本的 Windows 便携工具，集中管理充电、性能模式和键盘背光。同一个可执行文件提供中文图形界面与命令行。
+用于兼容联想笔记本的 Windows 便携工具，集中管理充电、性能模式和键盘背光。同一个可执行文件提供中文、英文、日文图形界面与命令行。
 
 本项目由社区维护，非联想官方软件；不分发 Lenovo 私有 DLL，不包含遥测、后台服务、安装器或自动更新。
 
@@ -33,6 +33,10 @@
 背光接口已在 IdeaNotebookAddin `1.0.13.79` 上完成只读验证：样本设备报告 `TwoLevelsAuto`，不支持自动调暗。请求构造已测试，尚未完成跨机型硬件写入验证。详见[兼容性说明](COMPATIBILITY.md)和[背光接口记录](KEYBOARD_BACKLIGHT_INTERFACE.md)。
 
 ## 图形界面
+
+GUI 启动时跟随 Windows 显示语言：中文（`zh-*`）使用简体中文，日文（`ja-*`）使用日文，其余语言回退到英文。日期、数字等区域格式不影响界面语言。
+
+**帮助**按钮会以相同语言打开随附的 `README.html`。直接打开 [README.html](README.html) 时按浏览器首选语言显示，也可手动切换。GitHub 的 Markdown 是静态页面，不能按系统语言自动选择 README，请使用顶部语言链接。若本地帮助缺失，帮助按钮会通过浏览器打开对应语言的 GitHub README。
 
 界面分为电池、性能、键盘和诊断四个标签页。刷新入口和状态提示始终可见；模式选项反映最近读取的设备状态，复选框用于背光开关。不支持的操作会禁用，不可用的充电阈值编辑器会隐藏。
 
@@ -101,13 +105,16 @@
 
 便携版输出为 `artifacts\publish\EnergyControl.exe`。重新构建前关闭正在运行的构建产物；`-Clean` 会删除先前的构建输出。
 
-协议和依赖测试不需要 Lenovo 硬件；未安装 Addin 时跳过真实合约请求构造测试。GUI 测试使用模拟状态，覆盖四个标签页、窄宽窗口以及 100/150/200% 缩放，截图保存到 `artifacts\layout`。测试不修改硬件设置。
+协议和依赖测试不需要 Lenovo 硬件；未安装 Addin 时跳过真实合约请求构造测试。GUI 测试使用三种语言的模拟状态，覆盖四个标签页、窄宽窗口以及 100/150/200% 缩放，截图保存到 `artifacts\layout\<语言>`。测试不修改硬件设置。
+
+构建时会从三份 Markdown 生成离线 HTML 帮助。编辑 README 后，可在 PowerShell 7 中运行 `.\docs\build-readme.ps1 -OutputPath .\README.html` 更新仓库中的 HTML。
 
 | 源文件 | 职责 |
 | --- | --- |
 | `Gui.cs` | 界面状态、确认交互和异步操作 |
 | `Gui.Layout.cs` | 标签页布局、控件及诊断展示 |
 | `GuiDeviceClient.cs` | 设备状态模型及接口聚合 |
+| `UiText.cs` | 共用翻译与显示语言选择 |
 | `Program.cs` | CLI |
 | `DirectChargeMode.cs`、`ChargeThreshold.cs`、`Models.cs`、`KeyboardBacklight.cs` | 设备后端 |
 

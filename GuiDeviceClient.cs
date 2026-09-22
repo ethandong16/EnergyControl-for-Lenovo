@@ -90,7 +90,7 @@ namespace LenovoSettingsGui
                 state.ChargeMode = direct.Mode.ToString();
                 state.SupportedChargeModes = direct.SupportedModes;
                 state.ChargeWritable = true;
-                state.ChargeBackend = "直接驱动";
+                state.ChargeBackend = UiText.Get("直接驱动");
                 state.ChargeLimitInfo = direct.LimitDescription;
                 directChargeActive = true;
             }
@@ -105,13 +105,13 @@ namespace LenovoSettingsGui
                         "Supported-BatteryChargeMode", "SupportedBatteryChargeMode", "BatteryChargeModeSupported");
                     string chargeErrorCode = AddinResponse.ErrorCode(charge);
                     if (!String.IsNullOrWhiteSpace(chargeErrorCode) && chargeErrorCode != "0")
-                        state.ChargeError = "设备返回错误 " + chargeErrorCode;
+                        state.ChargeError = UiText.Get("设备返回错误 ") + chargeErrorCode;
                     state.ChargeWritable = optionalClient.HasMethod("SetBatteryChargeMode");
                     state.ChargeBackend = "Lenovo Addin";
                 }
                 catch (Exception addinError)
                 {
-                    state.ChargeError = "直接驱动：" + RootMessage(directError) + "；Addin：" + RootMessage(addinError);
+                    state.ChargeError = UiText.Get("直接驱动：") + RootMessage(directError) + UiText.Get("；Addin：") + RootMessage(addinError);
                 }
             }
             try
@@ -136,7 +136,7 @@ namespace LenovoSettingsGui
                 state.IsGeekOptionGrey = AddinResponse.ReadSetting(performance, "IsGeekOptionGrey");
                 state.ErrorCode = AddinResponse.ReadSetting(performance, "ErrorCode");
                 if (!String.IsNullOrWhiteSpace(state.ErrorCode) && state.ErrorCode != "0")
-                    state.PerformanceError = "设备返回错误 " + state.ErrorCode;
+                    state.PerformanceError = UiText.Get("设备返回错误 ") + state.ErrorCode;
                 state.PerformanceWritable = optionalClient.HasMethod("SetITSMode");
             }
             catch (Exception ex) { state.PerformanceError = RootMessage(ex); }

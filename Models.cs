@@ -80,7 +80,7 @@ namespace LenovoSettingsCompat
             get
             {
                 EnsureAgent();
-                return agentType == null ? "未知" : agentType.FullName;
+                return agentType == null ? UiText.Get("未知") : agentType.FullName;
             }
         }
 
@@ -106,13 +106,13 @@ namespace LenovoSettingsCompat
             string path = AddinLocator.FindAssembly();
             if (String.IsNullOrWhiteSpace(path))
                 throw new System.IO.FileNotFoundException(
-                    "未检测到 Lenovo Vantage/百应的 IdeaNotebookAddin。此电脑可能不是联想设备，或相关服务未安装。",
+                    UiText.Get("未检测到 Lenovo Vantage/百应的 IdeaNotebookAddin。此电脑可能不是联想设备，或相关服务未安装。"),
                     AddinAssemblyName);
             Assembly addin = Assembly.LoadFrom(path);
             agentType = AddinLocator.FindAgentType(addin);
             if (agentType == null)
                 throw new MissingMethodException(
-                    "未在 Addin 中找到兼容的设备代理类型。可能是商用 Vantage 或不匹配的版本。");
+                    UiText.Get("未在 Addin 中找到兼容的设备代理类型。可能是商用 Vantage 或不匹配的版本。"));
             MethodInfo getInstance = agentType.GetMethod(
                 "GetInstance", BindingFlags.Public | BindingFlags.Static);
             if (getInstance == null)

@@ -1,9 +1,24 @@
 param(
     [switch]$LiveRead,
     [string]$Executable,
-    [string]$ScreenshotDirectory
+    [string]$ScreenshotDirectory,
+    [ValidateSet('zh-CN', 'en-US', 'ja-JP')]
+    [string]$Culture
 )
 $ErrorActionPreference = 'Stop'
+if ([String]::IsNullOrWhiteSpace($Culture)) {
+    foreach ($language in @('zh-CN','en-US','ja-JP')) {
+        $parameters = @{ Culture=$language }
+        if ($Executable) { $parameters.Executable=$Executable }
+        if ($ScreenshotDirectory) { $parameters.ScreenshotDirectory=$ScreenshotDirectory }
+        if ($LiveRead) { $parameters.LiveRead=$true }
+        & (Get-Process -Id $PID).Path -NoProfile -File $PSCommandPath @parameters
+        if ($LASTEXITCODE -ne 0) { throw "GUI verification failed for $language" }
+    }
+    return
+}
+[Globalization.CultureInfo]::CurrentUICulture = [Globalization.CultureInfo]::GetCultureInfo($Culture)
+[Globalization.CultureInfo]::DefaultThreadCurrentUICulture = [Globalization.CultureInfo]::CurrentUICulture
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
@@ -19,12 +34,15 @@ $asm = [Reflection.Assembly]::LoadFrom($exePath)
 if ([String]::IsNullOrWhiteSpace($ScreenshotDirectory)) {
     $ScreenshotDirectory = Join-Path $projectDir 'artifacts\layout'
 }
+$ScreenshotDirectory = Join-Path $ScreenshotDirectory $Culture
 New-Item -ItemType Directory -Path $ScreenshotDirectory -Force | Out-Null
 $flags = [Reflection.BindingFlags]'Instance,NonPublic,Public'
 $allFlags = [Reflection.BindingFlags]'Static,Instance,NonPublic,Public'
 $formType = $asm.GetType('LenovoSettingsGui.MainForm', $true)
 $stateType = $asm.GetType('LenovoSettingsGui.DeviceState', $true)
 $state = [Activator]::CreateInstance($stateType, $true)
+$textType = $asm.GetType('LenovoSettingsCompat.UiText', $true)
+$translate = $textType.GetMethod('Get', $allFlags)
 $sample = @{
     ChargeMode='Normal'; SupportedChargeModes='Normal,Storage,Quick'
     ChargeBackend='直接驱动'; ChargeLimitInfo='固件预设（未报告固定 80% 能力）'
@@ -42,6 +60,8 @@ $sample = @{
         KeyboardBacklightReserve='False'; KeyboardBacklightAutoDimCapability='False'
         KeyboardBacklightAutoDimStatus='NoCapability'; KeyboardBacklightAgent='IdeaNotebookAddin.dll 1.0.13.79'
 }
+$sample.ChargeBackend = $translate.Invoke($null,@($sample.ChargeBackend))
+$sample.ChargeLimitInfo = $translate.Invoke($null,@($sample.ChargeLimitInfo))
 
 # An unavailable percentage API must collapse its editor instead of leaving
 # misleading default 75/80 values visible.
@@ -168,7 +188,7 @@ foreach ($scenario in $scenarios) {
         $form.Opacity = 0
         $formType.GetMethod('DisplayState',$flags).Invoke($form,@($state)) | Out-Null
         $formType.GetMethod('SetBusy',$flags).Invoke($form,@($false,$null)) | Out-Null
-        $formType.GetMethod('SetStatus',$flags).Invoke($form,@('读取成功',[Drawing.Color]::SeaGreen)) | Out-Null
+        $formType.GetMethod('SetStatus',$flags).Invoke($form,@($translate.Invoke($null,@('读取成功')),[Drawing.Color]::SeaGreen)) | Out-Null
         $form.ClientSize = [Drawing.Size]::new($scenario.Width,$scenario.Height)
         if ($scenario.Scale -ne 1.0) {
             $fontSnapshot = @(GetFontSnapshot $form)
@@ -189,6 +209,16 @@ foreach ($scenario in $scenarios) {
         try {
             $tabs = $formType.GetField('settingsTabs',$flags).GetValue($form)
             if ($tabs.TabPages.Count -ne 4) { throw 'Expected battery, performance, keyboard and diagnostics tabs' }
+            $expectedTabs = switch ($Culture) {
+                'zh-CN' { @('电池','性能','键盘','诊断') }
+                'ja-JP' { @('バッテリー','パフォーマンス','キーボード','診断') }
+                default { @('Battery','Performance','Keyboard','Diagnostics') }
+            }
+            for ($index=0; $index -lt 4; $index++) {
+                if ($tabs.TabPages[$index].Text -ne $expectedTabs[$index]) {
+                    throw "Incorrect tab translation for $Culture at $index"
+                }
+            }
             for ($tabIndex = 0; $tabIndex -lt $tabs.TabPages.Count; $tabIndex++) {
                 $tabs.SelectedIndex = $tabIndex
                 [System.Windows.Forms.Application]::DoEvents()
@@ -264,7 +294,7 @@ foreach ($scenario in $scenarios) {
             if (-not $reserve.Enabled -or -not $restore.Enabled) {
                 throw 'Controls must recover when the device becomes available'
             }
-            Write-Output ($scenario.Name + ': PASS ' + $form.ClientSize)
+            Write-Output ($Culture + ' ' + $scenario.Name + ': PASS ' + $form.ClientSize)
         } finally { $bitmap.Dispose() }
     } finally { $form.Dispose() }
 }

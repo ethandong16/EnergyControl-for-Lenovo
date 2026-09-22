@@ -62,7 +62,7 @@ namespace LenovoSettingsCompat
 
         public static string DescribeAssembly(string assemblyPath)
         {
-            if (String.IsNullOrWhiteSpace(assemblyPath)) return "未找到";
+            if (String.IsNullOrWhiteSpace(assemblyPath)) return UiText.Get("未找到");
             try
             {
                 AssemblyName name = AssemblyName.GetAssemblyName(assemblyPath);
@@ -98,7 +98,7 @@ namespace LenovoSettingsCompat
             {
                 // WMI can be disabled or denied by enterprise policy.
             }
-            return "未知（WMI 不可用）";
+            return UiText.Get("未知（WMI 不可用）");
         }
 
         private static string FindHighestVersion(string[] roots)

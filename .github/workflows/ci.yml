@@ -37,7 +37,11 @@ jobs:
           .\bin\Release\net48\EnergyControl.exe help
           if ($LASTEXITCODE -ne 0) { throw "CLI help failed with exit code $LASTEXITCODE" }
 
-      - name: Run GUI DPI and threshold layout tests
+      - name: Verify multilingual offline help
+        shell: pwsh
+        run: node .\tests\readme-language.test.js
+
+      - name: Run multilingual GUI DPI and threshold layout tests
         shell: pwsh
         run: .\verify-layout.ps1
 

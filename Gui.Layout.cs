@@ -76,34 +76,36 @@ namespace LenovoSettingsGui
                 Anchor = AnchorStyles.Left | AnchorStyles.Right
             };
             header.Controls.Add(brand, 0, 0);
-            var toolbar = AutoTable(3);
+            var toolbar = AutoTable(4);
             toolbar.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            for (int index = 0; index < 3; index++)
+            for (int index = 0; index < 4; index++)
                 toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             toolbar.Margin = new Padding(0, 0, 0, 14);
-            StyleButton(refreshButton, "刷新", true);
-            StyleButton(diagnosticsButton, "诊断", false);
-            StyleButton(aboutButton, "关于", false);
-            foreach (Button button in new[] { refreshButton, diagnosticsButton, aboutButton })
+            StyleButton(refreshButton, UiText.Get("刷新"), true);
+            StyleButton(diagnosticsButton, UiText.Get("诊断"), false);
+            StyleButton(aboutButton, UiText.Get("关于"), false);
+            StyleButton(helpButton, UiText.Get("帮助"), false);
+            foreach (Button button in new[] { refreshButton, diagnosticsButton, helpButton, aboutButton })
                 button.Margin = new Padding(0, 0, 8, 0);
             refreshButton.Click += async delegate { await RefreshStateAsync(); };
             diagnosticsButton.Click += delegate { ShowDiagnostics(); };
             aboutButton.Click += delegate { ShowAbout(); };
-            toolbar.Controls.AddRange(new Control[] { refreshButton, diagnosticsButton, aboutButton });
+            helpButton.Click += delegate { ShowHelp(); };
+            toolbar.Controls.AddRange(new Control[] { refreshButton, diagnosticsButton, helpButton, aboutButton });
             header.Controls.Add(toolbar, 0, 1);
             shell.Controls.Add(header, 0, 0);
 
             settingsTabs.Dock = DockStyle.Fill;
             settingsTabs.Padding = new Point(18, 8);
-            settingsTabs.AccessibleName = "设备设置";
-            AddSettingsPage("电池",
-                CreateSection("充电模式", chargeCurrent, chargeSupported, chargeModes),
+            settingsTabs.AccessibleName = UiText.Get("设备设置");
+            AddSettingsPage(UiText.Get("电池"),
+                CreateSection(UiText.Get("充电模式"), chargeCurrent, chargeSupported, chargeModes),
                 CreateThresholdSection());
-            AddSettingsPage("性能",
-                CreateSection("性能模式", performanceCurrent, performanceSupported, performanceModes));
-            AddSettingsPage("键盘", CreateKeyboardBacklightSection());
+            AddSettingsPage(UiText.Get("性能"),
+                CreateSection(UiText.Get("性能模式"), performanceCurrent, performanceSupported, performanceModes));
+            AddSettingsPage(UiText.Get("键盘"), CreateKeyboardBacklightSection());
 
-            diagnosticsPage.Text = "诊断";
+            diagnosticsPage.Text = UiText.Get("诊断");
             diagnosticsPage.BackColor = Color.White;
             diagnosticsPage.Padding = new Padding(12);
             diagnosticsText.Dock = DockStyle.Fill;
@@ -112,8 +114,8 @@ namespace LenovoSettingsGui
             diagnosticsText.ScrollBars = ScrollBars.Vertical;
             diagnosticsText.BorderStyle = BorderStyle.None;
             diagnosticsText.BackColor = Color.White;
-            diagnosticsText.AccessibleName = "设备诊断报告";
-            diagnosticsText.Text = "尚未读取设备状态";
+            diagnosticsText.AccessibleName = UiText.Get("设备诊断报告");
+            diagnosticsText.Text = UiText.Get("尚未读取设备状态");
             diagnosticsPage.Controls.Add(diagnosticsText);
             settingsTabs.TabPages.Add(diagnosticsPage);
             shell.Controls.Add(settingsTabs, 0, 1);
@@ -157,18 +159,18 @@ namespace LenovoSettingsGui
                 card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             card.Controls.Add(new Label
             {
-                Text = "键盘背光",
+                Text = UiText.Get("键盘背光"),
                 AutoSize = true,
                 Font = new Font(Font.FontFamily, 12F, FontStyle.Bold),
                 Margin = new Padding(0, 0, 0, 9)
             }, 0, 0);
 
-            keyboardBacklightCurrent.Text = "当前：读取中…";
+            keyboardBacklightCurrent.Text = UiText.Get("当前：读取中…");
             keyboardBacklightCurrent.AutoSize = true;
             keyboardBacklightCurrent.Margin = new Padding(0, 0, 0, 5);
             card.Controls.Add(keyboardBacklightCurrent, 0, 1);
 
-            keyboardBacklightSupported.Text = "支持：读取中…";
+            keyboardBacklightSupported.Text = UiText.Get("支持：读取中…");
             keyboardBacklightSupported.AutoSize = true;
             keyboardBacklightSupported.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             keyboardBacklightSupported.ForeColor = Color.FromArgb(100, 110, 125);
@@ -181,7 +183,7 @@ namespace LenovoSettingsGui
             keyboardBacklightModes.WrapContents = true;
             keyboardBacklightModes.Margin = Padding.Empty;
             keyboardBacklightModes.Padding = Padding.Empty;
-            keyboardBacklightModes.AccessibleName = "键盘背光亮度选项";
+            keyboardBacklightModes.AccessibleName = UiText.Get("键盘背光亮度选项");
             card.Controls.Add(keyboardBacklightModes, 0, 3);
 
             keyboardBacklightActions.AutoSize = true;
@@ -190,30 +192,30 @@ namespace LenovoSettingsGui
             keyboardBacklightActions.WrapContents = true;
             keyboardBacklightActions.Margin = Padding.Empty;
             keyboardBacklightActions.Padding = Padding.Empty;
-            StyleToggle(keyboardBacklightReserveButton, "记住背光状态");
-            StyleToggle(keyboardBacklightAutoDimButton, "自动调暗");
-            StyleButton(keyboardBacklightDefaultButton, "恢复默认", false);
+            StyleToggle(keyboardBacklightReserveButton, UiText.Get("记住背光状态"));
+            StyleToggle(keyboardBacklightAutoDimButton, UiText.Get("自动调暗"));
+            StyleButton(keyboardBacklightDefaultButton, UiText.Get("恢复默认"), false);
             keyboardBacklightReserveButton.Margin = new Padding(0, 0, 10, 8);
             keyboardBacklightAutoDimButton.Margin = new Padding(0, 0, 10, 8);
             keyboardBacklightDefaultButton.Margin = new Padding(0, 0, 10, 8);
             keyboardBacklightReserveButton.Click += async delegate
             {
                 if (busy) return;
-                if (MessageBox.Show(this, "确认切换键盘背光保留状态吗？", "确认设置",
+                if (MessageBox.Show(this, UiText.Get("确认切换键盘背光保留状态吗？"), UiText.Get("确认设置"),
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
                 await ApplyKeyboardBacklightReserveAsync(!IsTrue(keyboardBacklightReserveButton.Tag));
             };
             keyboardBacklightAutoDimButton.Click += async delegate
             {
                 if (busy) return;
-                if (MessageBox.Show(this, "确认切换键盘背光自动调暗吗？", "确认设置",
+                if (MessageBox.Show(this, UiText.Get("确认切换键盘背光自动调暗吗？"), UiText.Get("确认设置"),
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
                 await ApplyKeyboardBacklightAutoDimAsync(!IsTrue(keyboardBacklightAutoDimButton.Tag));
             };
             keyboardBacklightDefaultButton.Click += async delegate
             {
                 if (busy) return;
-                if (MessageBox.Show(this, "确认恢复键盘背光默认设置吗？", "确认设置",
+                if (MessageBox.Show(this, UiText.Get("确认恢复键盘背光默认设置吗？"), UiText.Get("确认设置"),
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
                 await RestoreKeyboardBacklightDefaultAsync();
             };
@@ -236,19 +238,19 @@ namespace LenovoSettingsGui
                 card.RowStyles.Add(new RowStyle(SizeType.AutoSize));
             card.Controls.Add(new Label
             {
-                Text = "充电阈值",
+                Text = UiText.Get("充电阈值"),
                 AutoSize = true,
                 Font = new Font(Font.FontFamily, 12F, FontStyle.Bold),
                 Margin = new Padding(0, 0, 0, 9)
             }, 0, 0);
 
-            thresholdCurrent.Text = "当前：读取中…";
+            thresholdCurrent.Text = UiText.Get("当前：读取中…");
             thresholdCurrent.AutoSize = true;
             thresholdCurrent.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             thresholdCurrent.Margin = new Padding(0, 0, 0, 5);
             card.Controls.Add(thresholdCurrent, 0, 1);
 
-            thresholdSupported.Text = "支持：读取中…";
+            thresholdSupported.Text = UiText.Get("支持：读取中…");
             thresholdSupported.AutoSize = true;
             thresholdSupported.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             thresholdSupported.ForeColor = Color.FromArgb(100, 110, 125);
@@ -257,7 +259,7 @@ namespace LenovoSettingsGui
 
             ConfigureThresholdInput(thresholdStart, 75, 0);
             ConfigureThresholdInput(thresholdStop, 80, 1);
-            StyleButton(thresholdApply, "应用阈值", true);
+            StyleButton(thresholdApply, UiText.Get("应用阈值"), true);
             thresholdApply.Margin = new Padding(8, 0, 0, 0);
             thresholdApply.Click += async delegate
             {
@@ -270,14 +272,14 @@ namespace LenovoSettingsGui
                 }
                 catch (Exception ex)
                 {
-                    ShowError("阈值无效", ex);
+                    ShowError(UiText.Get("阈值无效"), ex);
                     return;
                 }
                 if (MessageBox.Show(
                     this,
-                    "确认设置为低于 " + startValue + "% 开始充电，充到 " +
-                        stopValue + "% 停止吗？",
-                    "确认设置",
+                    UiText.Get("确认设置为低于 ") + startValue + UiText.Get("% 开始充电，充到 ") +
+                        stopValue + UiText.Get("% 停止吗？"),
+                    UiText.Get("确认设置"),
                     MessageBoxButtons.YesNo,
                     MessageBoxIcon.Question) != DialogResult.Yes)
                     return;
@@ -292,12 +294,12 @@ namespace LenovoSettingsGui
             thresholdControls.Padding = Padding.Empty;
             thresholdControls.Visible = false;
             thresholdControls.Enabled = false;
-            thresholdControls.AccessibleName = "自定义充电阈值设置";
-            thresholdControls.Controls.Add(CreateInlineLabel("低于"));
+            thresholdControls.AccessibleName = UiText.Get("自定义充电阈值设置");
+            thresholdControls.Controls.Add(CreateInlineLabel(UiText.Get("低于")));
             thresholdControls.Controls.Add(thresholdStart);
-            thresholdControls.Controls.Add(CreateInlineLabel("% 开始，充到"));
+            thresholdControls.Controls.Add(CreateInlineLabel(UiText.Get("% 开始，充到")));
             thresholdControls.Controls.Add(thresholdStop);
-            thresholdControls.Controls.Add(CreateInlineLabel("% 停止"));
+            thresholdControls.Controls.Add(CreateInlineLabel(UiText.Get("% 停止")));
             thresholdControls.Controls.Add(thresholdApply);
             card.Controls.Add(thresholdControls, 0, 3);
             return card;
@@ -345,13 +347,13 @@ namespace LenovoSettingsGui
                 Margin = new Padding(0, 0, 0, 9)
             }, 0, 0);
 
-            current.Text = "当前：读取中…";
+            current.Text = UiText.Get("当前：读取中…");
             current.AutoSize = true;
             current.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             current.Margin = new Padding(0, 0, 0, 5);
             card.Controls.Add(current, 0, 1);
 
-            supported.Text = "支持：读取中…";
+            supported.Text = UiText.Get("支持：读取中…");
             supported.AutoSize = true;
             supported.Anchor = AnchorStyles.Left | AnchorStyles.Right;
             supported.ForeColor = Color.FromArgb(100, 110, 125);
@@ -364,7 +366,7 @@ namespace LenovoSettingsGui
             modes.WrapContents = true;
             modes.Margin = Padding.Empty;
             modes.Padding = Padding.Empty;
-            modes.AccessibleName = title + "选项";
+            modes.AccessibleName = title + UiText.Get("选项");
             card.Controls.Add(modes, 0, 3);
             return card;
         }
@@ -383,26 +385,26 @@ namespace LenovoSettingsGui
             diagnosticsText.Text = String.Join(Environment.NewLine, new[]
             {
                 "EnergyControl for Lenovo",
-                "读取时间：" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
+                UiText.Get("读取时间：") + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss"),
                 "",
-                "充电模式：" + (state.ChargeMode ?? "未知"),
-                "充电后端：" + (state.ChargeBackend ?? "不可用"),
-                "充电错误：" + (state.ChargeError ?? "无"),
-                "阈值能力：" + state.ThresholdCapable,
-                "阈值错误：" + (state.ThresholdError ?? "无"),
+                UiText.Get("充电模式：") + (state.ChargeMode ?? UiText.Get("未知")),
+                UiText.Get("充电后端：") + (state.ChargeBackend ?? UiText.Get("不可用")),
+                UiText.Get("充电错误：") + (state.ChargeError ?? UiText.Get("无")),
+                UiText.Get("阈值能力：") + UiText.Get(state.ThresholdCapable ? "是" : "否"),
+                UiText.Get("阈值错误：") + (state.ThresholdError ?? UiText.Get("无")),
                 "",
-                "性能模式：" + (state.PerformanceMode ?? "未知"),
-                "性能错误：" + (state.PerformanceError ?? "无"),
-                "性能驱动：" + (state.WorkingDriver ?? "未知"),
+                UiText.Get("性能模式：") + (state.PerformanceMode ?? UiText.Get("未知")),
+                UiText.Get("性能错误：") + (state.PerformanceError ?? UiText.Get("无")),
+                UiText.Get("性能驱动：") + (state.WorkingDriver ?? UiText.Get("未知")),
                 "",
-                "背光状态：" + (state.KeyboardBacklightStatus ?? "未知"),
-                "背光档位：" + (state.KeyboardBacklightLevelCapability ?? "未报告"),
-                "保留状态：" + (state.KeyboardBacklightReserve ?? "未报告"),
-                "自动调暗能力：" + (state.KeyboardBacklightAutoDimCapability ?? "未报告"),
-                "自动调暗状态：" + (state.KeyboardBacklightAutoDimStatus ?? "未报告"),
-                "背光错误：" + (state.KeyboardBacklightError ?? "无"),
+                UiText.Get("背光状态：") + (state.KeyboardBacklightStatus ?? UiText.Get("未知")),
+                UiText.Get("背光档位：") + (state.KeyboardBacklightLevelCapability ?? UiText.Get("未报告")),
+                UiText.Get("保留状态：") + (state.KeyboardBacklightReserve ?? UiText.Get("未报告")),
+                UiText.Get("自动调暗能力：") + (state.KeyboardBacklightAutoDimCapability ?? UiText.Get("未报告")),
+                UiText.Get("自动调暗状态：") + (state.KeyboardBacklightAutoDimStatus ?? UiText.Get("未报告")),
+                UiText.Get("背光错误：") + (state.KeyboardBacklightError ?? UiText.Get("无")),
                 "",
-                "Lenovo Addin：" + (state.AddinInfo ?? "未找到")
+                UiText.Get("Lenovo Addin：") + (state.AddinInfo ?? UiText.Get("未找到"))
             });
         }
 

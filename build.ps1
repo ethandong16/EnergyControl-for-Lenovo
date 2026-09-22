@@ -33,6 +33,10 @@ $builtExe = Join-Path $projectDir ("bin\$Configuration\net48\EnergyControl.exe")
 if (-not (Test-Path -LiteralPath $builtExe)) { throw "Built executable not found: $builtExe" }
 $publishedExe = Join-Path $publishDir 'EnergyControl.exe'
 Copy-Item -LiteralPath $builtExe -Destination $publishedExe -Force
+& (Join-Path $projectDir 'docs\build-readme.ps1') -OutputPath (Join-Path $publishDir 'README.html')
+Copy-Item -Path (Join-Path $projectDir '*.md') -Destination $publishDir -Force
+Copy-Item -LiteralPath (Join-Path $projectDir 'LICENSE') -Destination $publishDir -Force
+Copy-Item -LiteralPath (Join-Path $projectDir 'docs') -Destination $publishDir -Recurse -Force
 
 Write-Host "Built: $publishedExe"
-Write-Host 'The portable runtime payload contains only EnergyControl.exe; Lenovo components are discovered from the installed system at runtime.'
+Write-Host 'Portable payload: EnergyControl.exe and multilingual help. Lenovo components are discovered at runtime.'

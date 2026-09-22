@@ -19,6 +19,24 @@ $thresholdType = $asm.GetType('LenovoSettingsCompat.ChargeThresholdClient', $tru
 $backlightNamesType = $asm.GetType('LenovoSettingsCompat.KeyboardBacklightNames', $true)
 $backlightResponseType = $asm.GetType('LenovoSettingsCompat.KeyboardBacklightResponse', $true)
 $backlightClientType = $asm.GetType('LenovoSettingsCompat.LenovoKeyboardBacklightClient', $true)
+$textType = $asm.GetType('LenovoSettingsCompat.UiText', $true)
+$resolveLanguage = $textType.GetMethod('ResolveLanguage', $flags)
+foreach ($case in @(
+    @('en-GB','en'), @('ja-JP','ja'), @('zh-TW','zh'),
+    @('zh-CN','zh'), @('fr-FR','en'), @('','en'), @('not a culture','en')
+)) {
+    if ($resolveLanguage.Invoke($null,@($case[0])) -ne $case[1]) {
+        throw "Language fallback failed for $($case[0])"
+    }
+}
+$translations = $textType.GetField('Translations',$flags).GetValue($null)
+foreach ($entry in $translations.GetEnumerator()) {
+    if ($entry.Value.Count -ne 2 -or
+        [String]::IsNullOrWhiteSpace($entry.Value[0]) -or
+        [String]::IsNullOrWhiteSpace($entry.Value[1])) {
+        throw "Incomplete translation: $($entry.Key)"
+    }
+}
 
 function Get-Mode([string]$name) { [Enum]::Parse($modeType, $name) }
 function Get-Commands($state, [string]$name) {

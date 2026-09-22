@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EnergyControl for Lenovo</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #22282b; background: #fff; font: 16px/1.7 system-ui, sans-serif; }
+    nav { padding: 16px 24px; border-bottom: 1px solid #dce2e5; display: flex; gap: 24px; flex-wrap: wrap; }
+    nav a[aria-current] { color: #22282b; font-weight: 700; text-decoration: none; }
+    main { max-width: 960px; padding: 20px 24px 60px; margin: auto; }
+    a { color: #006e5a; overflow-wrap: anywhere; }
+    h1 { font-size: 30px; line-height: 1.25; }
+    h2 { margin-top: 36px; font-size: 22px; line-height: 1.4; }
+    p, li, td, th { overflow-wrap: anywhere; }
+    img { max-width: 100%; height: auto; }
+    pre { padding: 16px; background: #f3f6f7; overflow-x: auto; border-radius: 4px; }
+    code { font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+    th, td { border: 1px solid #dce2e5; padding: 10px 12px; text-align: left; vertical-align: top; }
+    th { background: #f3f6f7; }
+    [hidden] { display: none !important; }
+    @media (max-width: 560px) { main { padding: 16px; } th, td { padding: 7px; font-size: 14px; } }
+  </style>
+</head>
+<body>
+  <nav aria-label="Language">
+    <a href="?lang=en" data-language-link="en">English</a>
+    <a href="?lang=zh" data-language-link="zh">简体中文</a>
+    <a href="?lang=ja" data-language-link="ja">日本語</a>
+  </nav>
+  <main>
+    <article data-language="en" lang="en">{{EN}}</article>
+    <article data-language="zh" lang="zh-CN" hidden>{{ZH}}</article>
+    <article data-language="ja" lang="ja" hidden>{{JA}}</article>
+  </main>
+  <script>{{LANGUAGE_SCRIPT}}</script>
+</body>
+</html>

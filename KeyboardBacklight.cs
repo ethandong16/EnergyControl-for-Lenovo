@@ -32,12 +32,12 @@ namespace LenovoSettingsCompat
 
         public static string DisplayName(string value)
         {
-            if (String.Equals(value, "Level_1", StringComparison.OrdinalIgnoreCase)) return "一级亮度";
-            if (String.Equals(value, "Level_2", StringComparison.OrdinalIgnoreCase)) return "二级亮度";
-            if (String.Equals(value, "DisabledOff", StringComparison.OrdinalIgnoreCase)) return "关闭（禁用）";
-            if (String.Equals(value, "Auto", StringComparison.OrdinalIgnoreCase)) return "自动";
-            if (String.Equals(value, "Off", StringComparison.OrdinalIgnoreCase)) return "关闭";
-            return String.IsNullOrWhiteSpace(value) ? "未知" : value;
+            if (String.Equals(value, "Level_1", StringComparison.OrdinalIgnoreCase)) return UiText.Get("一级亮度");
+            if (String.Equals(value, "Level_2", StringComparison.OrdinalIgnoreCase)) return UiText.Get("二级亮度");
+            if (String.Equals(value, "DisabledOff", StringComparison.OrdinalIgnoreCase)) return UiText.Get("关闭（禁用）");
+            if (String.Equals(value, "Auto", StringComparison.OrdinalIgnoreCase)) return UiText.Get("自动");
+            if (String.Equals(value, "Off", StringComparison.OrdinalIgnoreCase)) return UiText.Get("关闭");
+            return String.IsNullOrWhiteSpace(value) ? UiText.Get("未知") : value;
         }
 
         public static bool TryParse(string value, out KeyboardBacklightLevel level)
@@ -270,7 +270,7 @@ namespace LenovoSettingsCompat
             state.CanAutoDim = state.CanAutoDim &&
                 String.Equals(state.AutoDimCapability, "True", StringComparison.OrdinalIgnoreCase);
             if (!state.IsSupported && String.IsNullOrWhiteSpace(state.Error))
-                state.Error = "设备未报告键盘背光能力。";
+                state.Error = UiText.Get("设备未报告键盘背光能力。");
             return state;
         }
 
@@ -305,7 +305,7 @@ namespace LenovoSettingsCompat
             get
             {
                 EnsureAgent();
-                return agentType == null ? "未知" : agentType.FullName;
+                return agentType == null ? UiText.Get("未知") : agentType.FullName;
             }
         }
 
@@ -319,7 +319,7 @@ namespace LenovoSettingsCompat
             object request = Activator.CreateInstance(requestType);
             object setting = CreateSetting(request, KeyboardBacklightNames.ToContractValue(level));
             if (setting == null)
-                throw new InvalidOperationException("无法构造 KeyboardSettingsRequest 请求体。");
+                throw new InvalidOperationException(UiText.Get("无法构造 KeyboardSettingsRequest 请求体。"));
             return request;
         }
 
@@ -381,12 +381,12 @@ namespace LenovoSettingsCompat
             assemblyPath = AddinLocator.FindAssembly();
             if (String.IsNullOrWhiteSpace(assemblyPath))
                 throw new FileNotFoundException(
-                    "未检测到 Lenovo Vantage/百应的 IdeaNotebookAddin。此电脑可能不是联想设备，或相关服务未安装。",
+                    UiText.Get("未检测到 Lenovo Vantage/百应的 IdeaNotebookAddin。此电脑可能不是联想设备，或相关服务未安装。"),
                     AddinAssemblyName);
             Assembly addin = Assembly.LoadFrom(assemblyPath);
             agentType = AddinLocator.FindAgentType(addin);
             if (agentType == null)
-                throw new MissingMethodException("未找到兼容的 Lenovo 设备代理类型。");
+                throw new MissingMethodException(UiText.Get("未找到兼容的 Lenovo 设备代理类型。"));
             MethodInfo getInstance = agentType.GetMethod(
                 "GetInstance", BindingFlags.Public | BindingFlags.Static);
             if (getInstance == null)

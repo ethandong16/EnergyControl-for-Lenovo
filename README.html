@@ -1,0 +1,596 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EnergyControl for Lenovo</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; color: #22282b; background: #fff; font: 16px/1.7 system-ui, sans-serif; }
+    nav { padding: 16px 24px; border-bottom: 1px solid #dce2e5; display: flex; gap: 24px; flex-wrap: wrap; }
+    nav a[aria-current] { color: #22282b; font-weight: 700; text-decoration: none; }
+    main { max-width: 960px; padding: 20px 24px 60px; margin: auto; }
+    a { color: #006e5a; overflow-wrap: anywhere; }
+    h1 { font-size: 30px; line-height: 1.25; }
+    h2 { margin-top: 36px; font-size: 22px; line-height: 1.4; }
+    p, li, td, th { overflow-wrap: anywhere; }
+    img { max-width: 100%; height: auto; }
+    pre { padding: 16px; background: #f3f6f7; overflow-x: auto; border-radius: 4px; }
+    code { font-size: 14px; }
+    table { border-collapse: collapse; width: 100%; margin: 20px 0; }
+    th, td { border: 1px solid #dce2e5; padding: 10px 12px; text-align: left; vertical-align: top; }
+    th { background: #f3f6f7; }
+    [hidden] { display: none !important; }
+    @media (max-width: 560px) { main { padding: 16px; } th, td { padding: 7px; font-size: 14px; } }
+  </style>
+</head>
+<body>
+  <nav aria-label="Language">
+    <a href="?lang=en" data-language-link="en">English</a>
+    <a href="?lang=zh" data-language-link="zh">简体中文</a>
+    <a href="?lang=ja" data-language-link="ja">日本語</a>
+  </nav>
+  <main>
+    <article data-language="en" lang="en"><h1 id="energycontrol-for-lenovo">EnergyControl for Lenovo</h1>
+<p>English | <a href="?lang=zh">简体中文</a> | <a href="?lang=ja">日本語</a></p>
+<p>A portable Windows utility for charging, performance modes and keyboard backlight on compatible Lenovo laptops. One executable provides a Chinese, English or Japanese desktop interface and a command-line interface.</p>
+<p>Unofficial and community maintained. No Lenovo private DLLs, telemetry, background service, installer or automatic updater.</p>
+<h2 id="get-started">Get Started</h2>
+<ol>
+<li>Download and extract the Windows x64 ZIP from <a href="https://github.com/ethandong16/EnergyControl-for-Lenovo/releases">Releases</a>.</li>
+<li>Compare its SHA-256 with the accompanying checksum file using <code>Get-FileHash .\&lt;downloaded-file&gt;.zip -Algorithm SHA256</code>.</li>
+<li>Double-click <code>EnergyControl.exe</code> for the GUI, or run <code>.\EnergyControl.exe diagnose</code> in PowerShell.</li>
+</ol>
+<p>Requires Windows 10/11 x64 and .NET Framework 4.8. Releases are unsigned. Source on <code>main</code> may contain changes not yet included in a release.</p>
+<h2 id="features-and-dependencies">Features and Dependencies</h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Controls</th>
+<th>Runtime dependency</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Charging</td>
+<td>Normal, conservation, express</td>
+<td>Compatible Lenovo EnergyDrv / ACPIVPC driver; optional Addin fallback</td>
+</tr>
+<tr>
+<td>Charge thresholds (experimental)</td>
+<td>Start and stop percentages</td>
+<td>Lenovo Power RPC service and firmware support</td>
+</tr>
+<tr>
+<td>Performance (experimental)</td>
+<td>Auto, quiet, performance, geek/creator</td>
+<td>Compatible installed Lenovo Addin</td>
+</tr>
+<tr>
+<td>Keyboard backlight (experimental)</td>
+<td>Off, level 1, level 2, auto; remember state, auto-dim, restore defaults</td>
+<td>Compatible installed IdeaNotebookAddin and firmware</td>
+</tr>
+<tr>
+<td>Diagnostics</td>
+<td>Availability, states and errors</td>
+<td>Available integrations are queried independently</td>
+</tr>
+</tbody>
+</table>
+<p>Settings vary by model. Conservation uses a firmware-defined limit and <strong>does not imply arbitrary percentage support</strong>. Automatic performance transition is also available through the CLI.</p>
+<p>Backlight reads have been verified with IdeaNotebookAddin <code>1.0.13.79</code>: the observed device reported <code>TwoLevelsAuto</code> and no auto-dim support. Request construction is tested; hardware writes have not been verified across devices. See <a href="COMPATIBILITY.md">compatibility</a> and <a href="KEYBOARD_BACKLIGHT_INTERFACE.md">backlight interface notes</a>.</p>
+<h2 id="desktop-interface">Desktop Interface</h2>
+<p>The GUI follows your Windows display language at startup: Chinese (<code>zh-*</code>) uses Simplified Chinese, Japanese (<code>ja-*</code>) uses Japanese, and all other languages use English. Regional number/date settings do not change the GUI language.</p>
+<p>The <strong>Help</strong> button opens the bundled <code>README.html</code> in the same language. Opening <a href="README.html">README.html</a> directly selects the browser's preferred language, with manual language links available. GitHub renders Markdown statically and cannot automatically select a README by system language; use the links above. If local help is missing, Help opens the corresponding README on GitHub. The browser handles that connection.</p>
+<p>Battery, performance, keyboard and diagnostics have separate tabs. Refresh and status remain visible. Mode selectors reflect the last device read, and checkboxes represent backlight switches. Unsupported actions are disabled; unavailable threshold editors are hidden.</p>
+<p>Changes require confirmation and are followed by a fresh device read. The diagnostics tab preserves full errors and the last read time. Switching tabs does not query hardware.</p>
+<p><img src="docs/images/keyboard.en.png" alt="Keyboard settings" /></p>
+<p><em>Current source GUI with simulated device data for layout verification. Available controls depend on your machine.</em></p>
+<h2 id="command-line">Command Line</h2>
+<p>Read-only queries:</p>
+<pre><code class="language-powershell">.\EnergyControl.exe status
+.\EnergyControl.exe diagnose
+.\EnergyControl.exe charge direct get
+.\EnergyControl.exe charge threshold get
+.\EnergyControl.exe performance get
+.\EnergyControl.exe keyboard-backlight get
+.\EnergyControl.exe keyboard-backlight capability
+</code></pre>
+<p>Every write requires <code>--apply</code>. These are independent examples, not a sequence to run:</p>
+<pre><code class="language-powershell">.\EnergyControl.exe charge direct set conservation --apply
+.\EnergyControl.exe charge threshold set 75 80 --apply
+.\EnergyControl.exe performance set quiet --apply
+.\EnergyControl.exe performance auto-transition on --apply
+.\EnergyControl.exe keyboard-backlight set level1 --apply
+.\EnergyControl.exe keyboard-backlight reserve on --apply
+.\EnergyControl.exe keyboard-backlight auto-dim on --apply
+.\EnergyControl.exe keyboard-backlight restore-default --apply
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Accepted values</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>charge direct set</code> or <code>charge set</code></td>
+<td><code>normal</code>, <code>conservation</code>, <code>express</code></td>
+</tr>
+<tr>
+<td><code>performance set</code></td>
+<td><code>auto</code>, <code>quiet</code>, <code>performance</code>, <code>geek</code></td>
+</tr>
+<tr>
+<td><code>keyboard-backlight set</code></td>
+<td><code>off</code>, <code>level1</code>, <code>level2</code>, <code>auto</code></td>
+</tr>
+<tr>
+<td><code>reserve</code>, <code>auto-dim</code>, <code>performance auto-transition</code></td>
+<td><code>on</code>, <code>off</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>charge get/set</code> uses the optional Addin; <code>charge direct get/set</code> uses EnergyDrv. <code>backlight</code> aliases <code>keyboard-backlight</code>. Run <code>help</code> for the command reference. Exit codes: <code>0</code> success, <code>1</code> operation failure or missing <code>--apply</code>, <code>2</code> invalid command or mode.</p>
+<h2 id="troubleshooting">Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Check</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IdeaNotebookAddin not found</td>
+<td>Install or repair compatible Lenovo Vantage components. Baiying alone does not guarantee this Addin is installed.</td>
+</tr>
+<tr>
+<td>Power RPC error <code>1722</code></td>
+<td>The required service is unavailable. Direct charging can still work independently.</td>
+</tr>
+<tr>
+<td>EnergyDrv cannot be opened</td>
+<td>Check the Lenovo ACPIVPC driver and access permissions.</td>
+</tr>
+<tr>
+<td>Setting unavailable or rejected</td>
+<td>Read diagnostics and check firmware support; do not infer support from another model.</td>
+</tr>
+</tbody>
+</table>
+<p>For integration testing, <code>LENOVO_SETTINGS_ADDIN_PATH</code> and <code>LENOVO_POWER_RPC_PATH</code> can point to trusted installed assemblies or their directories.</p>
+<h2 id="build-and-verify">Build and Verify</h2>
+<p>Use a .NET SDK capable of building SDK-style <code>net48</code> projects on Windows and PowerShell 7 for test scripts. Restore downloads public .NET Framework reference assemblies; compilation does not require Lenovo DLLs.</p>
+<pre><code class="language-powershell">.\build.ps1
+.\tests\run-tests.ps1
+.\verify-layout.ps1
+</code></pre>
+<p>The portable executable is written to <code>artifacts\publish\EnergyControl.exe</code>. Close running build outputs before rebuilding. <code>-Clean</code> removes previous build output.</p>
+<p>Protocol and dependency tests run without Lenovo hardware. Real request construction is skipped when the Addin is absent. GUI tests use simulated states in all three languages, check four tabs at narrow/wide sizes and 100/150/200% scaling, and save screenshots under <code>artifacts\layout\&lt;culture&gt;</code>. Tests do not apply hardware settings.</p>
+<p>Builds also generate offline HTML help from the three Markdown files. To regenerate the repository copy after editing a README, run <code>.\docs\build-readme.ps1 -OutputPath .\README.html</code> in PowerShell 7.</p>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Gui.cs</code></td>
+<td>UI state, confirmations and asynchronous operations</td>
+</tr>
+<tr>
+<td><code>Gui.Layout.cs</code></td>
+<td>Tabs, controls and diagnostic presentation</td>
+</tr>
+<tr>
+<td><code>GuiDeviceClient.cs</code></td>
+<td>Device state and integration aggregation</td>
+</tr>
+<tr>
+<td><code>UiText.cs</code></td>
+<td>Shared translations and display-language selection</td>
+</tr>
+<tr>
+<td><code>Program.cs</code></td>
+<td>CLI</td>
+</tr>
+<tr>
+<td><code>DirectChargeMode.cs</code>, <code>ChargeThreshold.cs</code>, <code>Models.cs</code>, <code>KeyboardBacklight.cs</code></td>
+<td>Device backends</td>
+</tr>
+</tbody>
+</table>
+<h2 id="project">Project</h2>
+<p><a href="INTERFACES.md">Interfaces</a> · <a href="REVERSE_ENGINEERING.md">Charging research</a> · <a href="CONTRIBUTING.md">Contributing</a> · <a href="SECURITY.md">Security</a> · <a href="DISCLAIMER.md">Disclaimer</a></p>
+<p>Licensed under <a href="LICENSE">GPL-3.0-only</a>. Lenovo is referenced solely to describe compatibility. This project is not affiliated with or endorsed by Lenovo.</p>
+</article>
+    <article data-language="zh" lang="zh-CN" hidden><h1 id="energycontrol-for-lenovo">EnergyControl for Lenovo</h1>
+<p><a href="?lang=en">English</a> | 简体中文 | <a href="?lang=ja">日本語</a></p>
+<p>用于兼容联想笔记本的 Windows 便携工具，集中管理充电、性能模式和键盘背光。同一个可执行文件提供中文、英文、日文图形界面与命令行。</p>
+<p>本项目由社区维护，非联想官方软件；不分发 Lenovo 私有 DLL，不包含遥测、后台服务、安装器或自动更新。</p>
+<h2 id="section">快速开始</h2>
+<ol>
+<li>从 <a href="https://github.com/ethandong16/EnergyControl-for-Lenovo/releases">Releases</a> 下载并解压 Windows x64 ZIP。</li>
+<li>用 <code>Get-FileHash .\&lt;下载的文件&gt;.zip -Algorithm SHA256</code> 计算校验值，与随附的校验文件对照。</li>
+<li>双击 <code>EnergyControl.exe</code> 打开 GUI，或在 PowerShell 中运行 <code>.\EnergyControl.exe diagnose</code>。</li>
+</ol>
+<p>需要 Windows 10/11 x64 和 .NET Framework 4.8。发布包未签名；<code>main</code> 分支可能包含最新发布包尚未提供的更改。</p>
+<h2 id="section-1">功能与依赖</h2>
+<table>
+<thead>
+<tr>
+<th>功能</th>
+<th>可用设置</th>
+<th>运行时依赖</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>充电模式</td>
+<td>常规、养护、快充</td>
+<td>兼容的 Lenovo EnergyDrv / ACPIVPC 驱动；可选 Addin 回退</td>
+</tr>
+<tr>
+<td>充电阈值（实验）</td>
+<td>起充、停充百分比</td>
+<td>Lenovo Power RPC 服务及固件支持</td>
+</tr>
+<tr>
+<td>性能模式（实验）</td>
+<td>自动、安静、高性能、极客或创作</td>
+<td>已安装的兼容 Lenovo Addin</td>
+</tr>
+<tr>
+<td>键盘背光（实验）</td>
+<td>关闭、一级、二级、自动；记住状态、自动调暗、恢复默认</td>
+<td>已安装的兼容 IdeaNotebookAddin 及固件</td>
+</tr>
+<tr>
+<td>诊断</td>
+<td>接口可用性、状态与错误</td>
+<td>各集成接口独立查询</td>
+</tr>
+</tbody>
+</table>
+<p>可用设置因机型而异。养护模式的停充限制由固件决定，<strong>不等同于支持任意百分比阈值</strong>。性能自动切换另有 CLI 命令。</p>
+<p>背光接口已在 IdeaNotebookAddin <code>1.0.13.79</code> 上完成只读验证：样本设备报告 <code>TwoLevelsAuto</code>，不支持自动调暗。请求构造已测试，尚未完成跨机型硬件写入验证。详见<a href="COMPATIBILITY.md">兼容性说明</a>和<a href="KEYBOARD_BACKLIGHT_INTERFACE.md">背光接口记录</a>。</p>
+<h2 id="section-2">图形界面</h2>
+<p>GUI 启动时跟随 Windows 显示语言：中文（<code>zh-*</code>）使用简体中文，日文（<code>ja-*</code>）使用日文，其余语言回退到英文。日期、数字等区域格式不影响界面语言。</p>
+<p><strong>帮助</strong>按钮会以相同语言打开随附的 <code>README.html</code>。直接打开 <a href="README.html">README.html</a> 时按浏览器首选语言显示，也可手动切换。GitHub 的 Markdown 是静态页面，不能按系统语言自动选择 README，请使用顶部语言链接。若本地帮助缺失，帮助按钮会通过浏览器打开对应语言的 GitHub README。</p>
+<p>界面分为电池、性能、键盘和诊断四个标签页。刷新入口和状态提示始终可见；模式选项反映最近读取的设备状态，复选框用于背光开关。不支持的操作会禁用，不可用的充电阈值编辑器会隐藏。</p>
+<p>每次修改都需要确认，应用后重新读取设备状态。诊断页保留完整错误信息和读取时间；切换标签页不会访问硬件。</p>
+<p><img src="docs/images/keyboard.png" alt="键盘设置" /></p>
+<p><em>当前源码 GUI，使用模拟设备数据进行布局验证；实际可用控件取决于本机能力。</em></p>
+<h2 id="section-3">命令行</h2>
+<p>只读查询：</p>
+<pre><code class="language-powershell">.\EnergyControl.exe status
+.\EnergyControl.exe diagnose
+.\EnergyControl.exe charge direct get
+.\EnergyControl.exe charge threshold get
+.\EnergyControl.exe performance get
+.\EnergyControl.exe keyboard-backlight get
+.\EnergyControl.exe keyboard-backlight capability
+</code></pre>
+<p>所有写入都需要 <code>--apply</code>。下面是独立示例，按需选择单条执行：</p>
+<pre><code class="language-powershell">.\EnergyControl.exe charge direct set conservation --apply
+.\EnergyControl.exe charge threshold set 75 80 --apply
+.\EnergyControl.exe performance set quiet --apply
+.\EnergyControl.exe performance auto-transition on --apply
+.\EnergyControl.exe keyboard-backlight set level1 --apply
+.\EnergyControl.exe keyboard-backlight reserve on --apply
+.\EnergyControl.exe keyboard-backlight auto-dim on --apply
+.\EnergyControl.exe keyboard-backlight restore-default --apply
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>命令</th>
+<th>可选值</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>charge direct set</code> 或 <code>charge set</code></td>
+<td><code>normal</code>、<code>conservation</code>、<code>express</code></td>
+</tr>
+<tr>
+<td><code>performance set</code></td>
+<td><code>auto</code>、<code>quiet</code>、<code>performance</code>、<code>geek</code></td>
+</tr>
+<tr>
+<td><code>keyboard-backlight set</code></td>
+<td><code>off</code>、<code>level1</code>、<code>level2</code>、<code>auto</code></td>
+</tr>
+<tr>
+<td><code>reserve</code>、<code>auto-dim</code>、<code>performance auto-transition</code></td>
+<td><code>on</code>、<code>off</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>charge get/set</code> 使用可选 Addin，<code>charge direct get/set</code> 使用 EnergyDrv。<code>backlight</code> 是 <code>keyboard-backlight</code> 的别名。运行 <code>help</code> 查看命令列表。退出码：<code>0</code> 成功，<code>1</code> 操作失败或缺少 <code>--apply</code>，<code>2</code> 命令或模式无效。</p>
+<h2 id="section-4">故障排查</h2>
+<table>
+<thead>
+<tr>
+<th>现象</th>
+<th>检查项</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>未找到 IdeaNotebookAddin</td>
+<td>安装或修复兼容的 Lenovo Vantage 组件；仅安装百应不代表此 Addin 已存在。</td>
+</tr>
+<tr>
+<td>Power RPC 错误 <code>1722</code></td>
+<td>所需 RPC 服务不可用；直接驱动充电功能仍可独立使用。</td>
+</tr>
+<tr>
+<td>无法打开 EnergyDrv</td>
+<td>检查 Lenovo ACPIVPC 驱动及访问权限。</td>
+</tr>
+<tr>
+<td>功能不可用或设置被拒绝</td>
+<td>查看诊断和固件能力，不要根据其他机型推断本机支持。</td>
+</tr>
+</tbody>
+</table>
+<p>本地集成测试可通过 <code>LENOVO_SETTINGS_ADDIN_PATH</code>、<code>LENOVO_POWER_RPC_PATH</code> 指向可信的已安装程序集或所在目录。</p>
+<h2 id="section-5">构建与验证</h2>
+<p>在 Windows 上安装能够构建 SDK 风格 <code>net48</code> 项目的 .NET SDK，测试脚本使用 PowerShell 7。还原过程下载公开的 .NET Framework 引用程序集，编译不需要 Lenovo DLL。</p>
+<pre><code class="language-powershell">.\build.ps1
+.\tests\run-tests.ps1
+.\verify-layout.ps1
+</code></pre>
+<p>便携版输出为 <code>artifacts\publish\EnergyControl.exe</code>。重新构建前关闭正在运行的构建产物；<code>-Clean</code> 会删除先前的构建输出。</p>
+<p>协议和依赖测试不需要 Lenovo 硬件；未安装 Addin 时跳过真实合约请求构造测试。GUI 测试使用三种语言的模拟状态，覆盖四个标签页、窄宽窗口以及 100/150/200% 缩放，截图保存到 <code>artifacts\layout\&lt;语言&gt;</code>。测试不修改硬件设置。</p>
+<p>构建时会从三份 Markdown 生成离线 HTML 帮助。编辑 README 后，可在 PowerShell 7 中运行 <code>.\docs\build-readme.ps1 -OutputPath .\README.html</code> 更新仓库中的 HTML。</p>
+<table>
+<thead>
+<tr>
+<th>源文件</th>
+<th>职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Gui.cs</code></td>
+<td>界面状态、确认交互和异步操作</td>
+</tr>
+<tr>
+<td><code>Gui.Layout.cs</code></td>
+<td>标签页布局、控件及诊断展示</td>
+</tr>
+<tr>
+<td><code>GuiDeviceClient.cs</code></td>
+<td>设备状态模型及接口聚合</td>
+</tr>
+<tr>
+<td><code>UiText.cs</code></td>
+<td>共用翻译与显示语言选择</td>
+</tr>
+<tr>
+<td><code>Program.cs</code></td>
+<td>CLI</td>
+</tr>
+<tr>
+<td><code>DirectChargeMode.cs</code>、<code>ChargeThreshold.cs</code>、<code>Models.cs</code>、<code>KeyboardBacklight.cs</code></td>
+<td>设备后端</td>
+</tr>
+</tbody>
+</table>
+<h2 id="section-6">项目资料</h2>
+<p><a href="INTERFACES.md">接口参考</a> · <a href="REVERSE_ENGINEERING.md">充电逆向记录</a> · <a href="CONTRIBUTING.md">参与贡献</a> · <a href="SECURITY.md">安全报告</a> · <a href="DISCLAIMER.md">免责声明</a></p>
+<p>采用 <a href="LICENSE">GPL-3.0-only</a> 许可证。Lenovo 仅用于说明兼容目标，本项目未获得联想背书，与联想无隶属关系。</p>
+</article>
+    <article data-language="ja" lang="ja" hidden><h1 id="energycontrol-for-lenovo">EnergyControl for Lenovo</h1>
+<p><a href="?lang=en">English</a> | <a href="?lang=zh">简体中文</a> | 日本語</p>
+<p>対応する Lenovo ノート PC の充電、パフォーマンス、キーボードのバックライトを管理する Windows 用ポータブルツールです。1 つの実行ファイルで、中国語・英語・日本語の GUI とコマンドラインを利用できます。</p>
+<p>コミュニティが開発する非公式ソフトウェアです。Lenovo の非公開 DLL、テレメトリ、常駐サービス、インストーラー、自動更新は含みません。</p>
+<h2 id="section">はじめに</h2>
+<ol>
+<li><a href="https://github.com/ethandong16/EnergyControl-for-Lenovo/releases">Releases</a> から Windows x64 用 ZIP をダウンロードし、展開します。</li>
+<li><code>Get-FileHash .\&lt;ダウンロードしたファイル&gt;.zip -Algorithm SHA256</code> で SHA-256 を計算し、付属のチェックサムと照合します。</li>
+<li><code>EnergyControl.exe</code> をダブルクリックして GUI を開くか、PowerShell で <code>.\EnergyControl.exe diagnose</code> を実行します。</li>
+</ol>
+<p>Windows 10/11 x64 と .NET Framework 4.8 が必要です。配布ファイルは未署名です。<code>main</code> ブランチには、最新リリースにまだ含まれていない変更がある場合があります。</p>
+<h2 id="section-1">機能と依存関係</h2>
+<table>
+<thead>
+<tr>
+<th>機能</th>
+<th>設定</th>
+<th>実行時の依存関係</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>充電モード</td>
+<td>通常、バッテリー保護、急速充電</td>
+<td>対応する Lenovo EnergyDrv / ACPIVPC ドライバー。Addin による代替経路も利用可能</td>
+</tr>
+<tr>
+<td>充電しきい値（実験的）</td>
+<td>充電開始・停止の割合</td>
+<td>Lenovo Power RPC サービスと対応ファームウェア</td>
+</tr>
+<tr>
+<td>パフォーマンス（実験的）</td>
+<td>自動、静音、高性能、エキスパート／クリエイター</td>
+<td>インストール済みの対応 Lenovo Addin</td>
+</tr>
+<tr>
+<td>バックライト（実験的）</td>
+<td>オフ、明るさ 1・2、自動、状態の記憶、自動減光、初期設定への復元</td>
+<td>インストール済みの対応 IdeaNotebookAddin とファームウェア</td>
+</tr>
+<tr>
+<td>診断</td>
+<td>利用可否、状態、エラー</td>
+<td>各インターフェースを個別に照会</td>
+</tr>
+</tbody>
+</table>
+<p>利用可能な設定は機種によって異なります。バッテリー保護モードの上限はファームウェアによって決まり、<strong>任意の充電割合を設定できるとは限りません</strong>。パフォーマンスの自動切り替えは CLI からも操作できます。</p>
+<p>バックライトの読み取りは IdeaNotebookAddin <code>1.0.13.79</code> で確認済みです。検証機は <code>TwoLevelsAuto</code> に対応し、自動減光には非対応でした。要求データの構築はテスト済みですが、各機種でのハードウェア書き込みは未検証です。<a href="COMPATIBILITY.md">互換性</a>と<a href="KEYBOARD_BACKLIGHT_INTERFACE.md">バックライトの調査記録</a>も参照してください。</p>
+<h2 id="section-2">デスクトップ画面</h2>
+<p>起動時に Windows の表示言語を使用します。中国語（<code>zh-*</code>）は簡体字中国語、日本語（<code>ja-*</code>）は日本語、それ以外は英語になります。日付や数値の地域設定では GUI の言語は変わりません。</p>
+<p><strong>ヘルプ</strong>ボタンは、付属の <code>README.html</code> を GUI と同じ言語で開きます。<a href="README.html">README.html</a> を直接開くとブラウザーの優先言語が選ばれ、手動でも切り替えられます。GitHub の Markdown 表示では OS の言語を検出できないため、ページ上部のリンクを使用してください。ローカルのヘルプがない場合は、ブラウザーで該当言語の GitHub README を開きます。</p>
+<p>バッテリー、パフォーマンス、キーボード、診断を別々のタブに配置しています。更新ボタンと状態表示は常に表示されます。モードの選択状態は直近の読み取り結果を反映し、バックライトのオン／オフ設定にはチェックボックスを使用します。非対応の操作は無効になり、利用できないしきい値の編集欄は非表示になります。</p>
+<p>変更には確認が必要です。適用後に状態を再読み取りします。診断タブには完全なエラー情報と最終読み取り時刻が残ります。タブの切り替えではハードウェアにアクセスしません。</p>
+<p><img src="docs/images/keyboard.ja.png" alt="キーボード設定" /></p>
+<p><em>現在のソースから生成した GUI。レイアウト検証用の模擬データを使用しています。実際の操作項目は機種によって異なります。</em></p>
+<h2 id="section-3">コマンドライン</h2>
+<p>読み取り専用の照会：</p>
+<pre><code class="language-powershell">.\EnergyControl.exe status
+.\EnergyControl.exe diagnose
+.\EnergyControl.exe charge direct get
+.\EnergyControl.exe charge threshold get
+.\EnergyControl.exe performance get
+.\EnergyControl.exe keyboard-backlight get
+.\EnergyControl.exe keyboard-backlight capability
+</code></pre>
+<p>書き込みには必ず <code>--apply</code> が必要です。以下は独立した例です。必要なコマンドだけを実行してください。</p>
+<pre><code class="language-powershell">.\EnergyControl.exe charge direct set conservation --apply
+.\EnergyControl.exe charge threshold set 75 80 --apply
+.\EnergyControl.exe performance set quiet --apply
+.\EnergyControl.exe performance auto-transition on --apply
+.\EnergyControl.exe keyboard-backlight set level1 --apply
+.\EnergyControl.exe keyboard-backlight reserve on --apply
+.\EnergyControl.exe keyboard-backlight auto-dim on --apply
+.\EnergyControl.exe keyboard-backlight restore-default --apply
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>コマンド</th>
+<th>値</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>charge direct set</code> または <code>charge set</code></td>
+<td><code>normal</code>、<code>conservation</code>、<code>express</code></td>
+</tr>
+<tr>
+<td><code>performance set</code></td>
+<td><code>auto</code>、<code>quiet</code>、<code>performance</code>、<code>geek</code></td>
+</tr>
+<tr>
+<td><code>keyboard-backlight set</code></td>
+<td><code>off</code>、<code>level1</code>、<code>level2</code>、<code>auto</code></td>
+</tr>
+<tr>
+<td><code>reserve</code>、<code>auto-dim</code>、<code>performance auto-transition</code></td>
+<td><code>on</code>、<code>off</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>charge get/set</code> は Addin、<code>charge direct get/set</code> は EnergyDrv を使用します。<code>backlight</code> は <code>keyboard-backlight</code> の別名です。<code>help</code> でコマンド一覧を表示できます。終了コードは <code>0</code> が成功、<code>1</code> が操作失敗または <code>--apply</code> の不足、<code>2</code> がコマンドまたはモードの誤りです。</p>
+<h2 id="section-4">トラブルシューティング</h2>
+<table>
+<thead>
+<tr>
+<th>症状</th>
+<th>確認事項</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IdeaNotebookAddin が見つからない</td>
+<td>対応する Lenovo Vantage コンポーネントをインストールまたは修復してください。Baiying だけでは、この Addin が導入されているとは限りません。</td>
+</tr>
+<tr>
+<td>Power RPC エラー <code>1722</code></td>
+<td>必要なサービスを利用できません。ドライバー直接制御による充電設定は独立して使用できます。</td>
+</tr>
+<tr>
+<td>EnergyDrv を開けない</td>
+<td>Lenovo ACPIVPC ドライバーとアクセス権限を確認してください。</td>
+</tr>
+<tr>
+<td>設定が利用できない、または拒否される</td>
+<td>診断とファームウェアの対応状況を確認してください。他の機種の対応状況から推測しないでください。</td>
+</tr>
+</tbody>
+</table>
+<p>統合テストでは <code>LENOVO_SETTINGS_ADDIN_PATH</code> と <code>LENOVO_POWER_RPC_PATH</code> に、信頼できるインストール済みアセンブリまたはそのディレクトリを指定できます。</p>
+<h2 id="section-5">ビルドと検証</h2>
+<p>Windows で SDK 形式の <code>net48</code> プロジェクトをビルドできる .NET SDK と、テストスクリプト用の PowerShell 7 を使用します。復元時に公開の .NET Framework 参照アセンブリを取得します。コンパイルに Lenovo DLL は不要です。</p>
+<pre><code class="language-powershell">.\build.ps1
+.\tests\run-tests.ps1
+.\verify-layout.ps1
+</code></pre>
+<p>実行ファイルは <code>artifacts\publish\EnergyControl.exe</code> に出力されます。再ビルドの前に、実行中のビルド成果物を終了してください。<code>-Clean</code> は以前のビルド出力を削除します。</p>
+<p>プロトコルと依存関係のテストに Lenovo ハードウェアは不要です。Addin がない場合は実際の要求データ構築テストをスキップします。GUI テストは 3 言語の模擬状態を使用し、4 タブ、狭い／広いウィンドウ、100/150/200% の拡大率を検証します。画像は <code>artifacts\layout\&lt;言語&gt;</code> に保存します。テストでハードウェア設定を変更することはありません。</p>
+<p>ビルド時には 3 つの Markdown ファイルからオフライン HTML ヘルプも生成します。README を編集した後、PowerShell 7 で <code>.\docs\build-readme.ps1 -OutputPath .\README.html</code> を実行すると、リポジトリ内の HTML を更新できます。</p>
+<table>
+<thead>
+<tr>
+<th>ソース</th>
+<th>役割</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Gui.cs</code></td>
+<td>UI の状態、確認、非同期操作</td>
+</tr>
+<tr>
+<td><code>Gui.Layout.cs</code></td>
+<td>タブ、コントロール、診断表示</td>
+</tr>
+<tr>
+<td><code>GuiDeviceClient.cs</code></td>
+<td>デバイス状態とインターフェースの集約</td>
+</tr>
+<tr>
+<td><code>UiText.cs</code></td>
+<td>翻訳と表示言語の選択</td>
+</tr>
+<tr>
+<td><code>Program.cs</code></td>
+<td>CLI</td>
+</tr>
+<tr>
+<td><code>DirectChargeMode.cs</code>、<code>ChargeThreshold.cs</code>、<code>Models.cs</code>、<code>KeyboardBacklight.cs</code></td>
+<td>デバイスバックエンド</td>
+</tr>
+</tbody>
+</table>
+<h2 id="section-6">プロジェクト資料</h2>
+<p><a href="INTERFACES.md">インターフェース</a> · <a href="REVERSE_ENGINEERING.md">充電機能の調査</a> · <a href="CONTRIBUTING.md">貢献</a> · <a href="SECURITY.md">セキュリティ</a> · <a href="DISCLAIMER.md">免責事項</a></p>
+<p><a href="LICENSE">GPL-3.0-only</a> ライセンスです。Lenovo の名称は互換性を示すためにのみ使用しています。本プロジェクトは Lenovo と提携しておらず、Lenovo の承認を受けたものではありません。</p>
+</article>
+  </main>
+  <script>(function () {
+    "use strict";
+
+    function resolveLanguage(value) {
+        var language = (value || "").toLowerCase().split(/[-_]/)[0];
+        return language === "zh" || language === "ja" ? language : "en";
+    }
+
+    var requested = new URLSearchParams(window.location.search).get("lang");
+    var language = resolveLanguage(requested || navigator.language);
+    document.documentElement.lang = language === "zh" ? "zh-CN" : language;
+    document.querySelectorAll("[data-language]").forEach(function (article) {
+        article.hidden = article.dataset.language !== language;
+    });
+    document.querySelectorAll("[data-language-link]").forEach(function (link) {
+        if (link.dataset.languageLink === language) {
+            link.setAttribute("aria-current", "page");
+        } else {
+            link.removeAttribute("aria-current");
+        }
+    });
+}());
+</script>
+</body>
+</html>

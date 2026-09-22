@@ -4,6 +4,9 @@ All notable changes to EnergyControl for Lenovo are documented here.
 
 ## [Unreleased]
 
+- Select Chinese, English or Japanese GUI text from the Windows display language, with English fallback.
+- Add Japanese documentation and offline HTML help with automatic language selection.
+- Verify translations, documentation language routing and layout in all three languages.
 - Organize the desktop interface into battery, performance, keyboard and diagnostics tabs.
 - Split device aggregation, layout and UI operations into separate modules.
 - Fix backlight actions staying disabled after refresh and reject unknown switch states.

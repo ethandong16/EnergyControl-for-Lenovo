@@ -32,16 +32,16 @@ namespace LenovoSettingsCompat
             switch (errorCode)
             {
                 case 1722:
-                    detail = "Lenovo Power RPC 服务未运行，请先启动 Lenovo Vantage 或联想百应";
+                    detail = UiText.Get("Lenovo Power RPC 服务未运行，请先启动 Lenovo Vantage 或联想百应");
                     break;
                 case 1775:
-                    detail = "Lenovo Power RPC 会话不可用";
+                    detail = UiText.Get("Lenovo Power RPC 会话不可用");
                     break;
                 default:
-                    detail = "设备返回错误";
+                    detail = UiText.Get("设备返回错误");
                     break;
             }
-            return operation + "失败：" + detail + "（错误码 " + errorCode + "）。";
+            return operation + UiText.Get("失败：") + detail + UiText.Get("（错误码 ") + errorCode + UiText.Get("）。");
         }
     }
 
@@ -62,7 +62,7 @@ namespace LenovoSettingsCompat
             MethodInfo method = FindMethod("ClientGetChargeThreshold", 5);
             object[] arguments = { slot, false, false, 0, 0 };
             int result = InvokeResult(method, arguments);
-            EnsureSuccess("读取充电阈值", result);
+            EnsureSuccess(UiText.Get("读取充电阈值"), result);
             return new ChargeThresholdState
             {
                 Slot = slot,
@@ -82,19 +82,19 @@ namespace LenovoSettingsCompat
             EnsureInitialized();
             MethodInfo method = FindMethod("ClientSetChargeThreshold", 3);
             int result = InvokeResult(method, new object[] { slot, startValue, stopValue });
-            EnsureSuccess("设置充电阈值", result);
+            EnsureSuccess(UiText.Get("设置充电阈值"), result);
         }
 
         public static void ValidateValues(int startValue, int stopValue)
         {
             if (startValue < 0 || startValue > 100)
                 throw new ArgumentOutOfRangeException(
-                    "startValue", "起充阈值必须在 0 到 100 之间。");
+                    "startValue", UiText.Get("起充阈值必须在 0 到 100 之间。"));
             if (stopValue < 1 || stopValue > 100)
                 throw new ArgumentOutOfRangeException(
-                    "stopValue", "停充阈值必须在 1 到 100 之间。");
+                    "stopValue", UiText.Get("停充阈值必须在 1 到 100 之间。"));
             if (startValue >= stopValue)
-                throw new ArgumentException("起充阈值必须小于停充阈值。");
+                throw new ArgumentException(UiText.Get("起充阈值必须小于停充阈值。"));
         }
 
         public static string FindClientAssembly()
@@ -129,7 +129,7 @@ namespace LenovoSettingsCompat
         public static string DescribeAvailability()
         {
             string path = FindClientAssembly();
-            if (String.IsNullOrWhiteSpace(path)) return "未找到";
+            if (String.IsNullOrWhiteSpace(path)) return UiText.Get("未找到");
             try
             {
                 AssemblyName name = System.Reflection.AssemblyName.GetAssemblyName(path);
@@ -148,20 +148,20 @@ namespace LenovoSettingsCompat
             assemblyPath = FindClientAssembly();
             if (String.IsNullOrWhiteSpace(assemblyPath))
                 throw new FileNotFoundException(
-                    "未检测到 Lenovo Power RPC 客户端，无法读取自定义充电阈值。",
+                    UiText.Get("未检测到 Lenovo Power RPC 客户端，无法读取自定义充电阈值。"),
                     ClientAssemblyFileName);
 
             Assembly assembly = Assembly.LoadFrom(assemblyPath);
             clientType = assembly.GetType(ClientTypeName, false);
             if (clientType == null)
                 throw new MissingMethodException(
-                    "Lenovo Power RPC 客户端中不存在 " + ClientTypeName + "。");
+                    UiText.Get("Lenovo Power RPC 客户端中不存在 ") + ClientTypeName + UiText.Get("。"));
             client = Activator.CreateInstance(clientType);
             if (client == null)
-                throw new InvalidOperationException("无法创建 Lenovo Power RPC 客户端。");
+                throw new InvalidOperationException(UiText.Get("无法创建 Lenovo Power RPC 客户端。"));
 
             int result = InvokeResult(FindMethod("ClientInitialize", 0), new object[0]);
-            EnsureSuccess("初始化充电阈值接口", result);
+            EnsureSuccess(UiText.Get("初始化充电阈值接口"), result);
             initialized = true;
         }
 
@@ -200,7 +200,7 @@ namespace LenovoSettingsCompat
 
         private string DescribeClient()
         {
-            if (String.IsNullOrWhiteSpace(assemblyPath)) return "未知";
+            if (String.IsNullOrWhiteSpace(assemblyPath)) return UiText.Get("未知");
             try
             {
                 Version version = AssemblyName.GetAssemblyName(assemblyPath).Version;
@@ -221,7 +221,7 @@ namespace LenovoSettingsCompat
         private static void ValidateSlot(int slot)
         {
             if (slot < 0)
-                throw new ArgumentOutOfRangeException("slot", "电池槽位不能为负数。");
+                throw new ArgumentOutOfRangeException("slot", UiText.Get("电池槽位不能为负数。"));
         }
 
         private static string FindNewestClient(string[] addinRoots)

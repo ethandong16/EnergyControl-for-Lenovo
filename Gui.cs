@@ -36,44 +36,45 @@ namespace LenovoSettingsGui
         private readonly Label statusLabel = new Label();
         private readonly Button refreshButton = new Button();
         private readonly Button aboutButton = new Button();
+        private readonly Button helpButton = new Button();
         private readonly Button diagnosticsButton = new Button();
         private EventHandler initialRefreshHandler;
         private bool busy;
         private bool geekOptionGrey;
         private bool thresholdAvailable;
 
-        private static readonly ModeItem[] AllChargeModes =
+        private readonly ModeItem[] AllChargeModes =
         {
-            new ModeItem("常规充电", "Normal", ChargeMode.Normal,
+            new ModeItem(UiText.Get("常规充电"), "Normal", ChargeMode.Normal,
                 "Standard", "Regular"),
-            new ModeItem("养护充电", "Storage", ChargeMode.Storage,
+            new ModeItem(UiText.Get("养护充电"), "Storage", ChargeMode.Storage,
                 "Conservation", "BatteryConservation", "LongLife"),
-            new ModeItem("快充", "Quick", ChargeMode.Quick,
+            new ModeItem(UiText.Get("快充"), "Quick", ChargeMode.Quick,
                 "Express", "Rapid", "RapidCharge")
         };
 
-        private static readonly ModeItem[] AllPerformanceModes =
+        private readonly ModeItem[] AllPerformanceModes =
         {
-            new ModeItem("自动", "MMC_Auto", PerformanceMode.Auto,
+            new ModeItem(UiText.Get("自动"), "MMC_Auto", PerformanceMode.Auto,
                 "ITS_Auto", "MMC_Balance", "Auto", "Balance", "Balanced", "Smart",
                 "IntelligentCooling"),
-            new ModeItem("安静 / 节能", "MMC_Cool", PerformanceMode.Cool,
+            new ModeItem(UiText.Get("安静 / 节能"), "MMC_Cool", PerformanceMode.Cool,
                 "MMC_Quiet", "Quiet", "Silent", "Cool", "Bsm_Quiet", "BatterySaving", "EnergySaving"),
             new ModeItem(
-                "高性能",
+                UiText.Get("高性能"),
                 "MMC_Performance",
                 PerformanceMode.Performance,
                 "MMC_Extreme", "Performance", "Extreme", "Turbo"),
-            new ModeItem("极客模式", "MMC_Geek", PerformanceMode.Geek,
+            new ModeItem(UiText.Get("极客模式"), "MMC_Geek", PerformanceMode.Geek,
                 "Geek", "Creator", "Creative")
         };
 
-        private static readonly ModeItem[] AllKeyboardBacklightModes =
+        private readonly ModeItem[] AllKeyboardBacklightModes =
         {
-            new ModeItem("关闭", "Off", KeyboardBacklightLevel.Off),
-            new ModeItem("一级亮度", "Level_1", KeyboardBacklightLevel.Level1, "OneLevel"),
-            new ModeItem("二级亮度", "Level_2", KeyboardBacklightLevel.Level2, "TwoLevels"),
-            new ModeItem("自动", "Auto", KeyboardBacklightLevel.Auto, "TwoLevelsAuto")
+            new ModeItem(UiText.Get("关闭"), "Off", KeyboardBacklightLevel.Off),
+            new ModeItem(UiText.Get("一级亮度"), "Level_1", KeyboardBacklightLevel.Level1, "OneLevel"),
+            new ModeItem(UiText.Get("二级亮度"), "Level_2", KeyboardBacklightLevel.Level2, "TwoLevels"),
+            new ModeItem(UiText.Get("自动"), "Auto", KeyboardBacklightLevel.Auto, "TwoLevelsAuto")
         };
 
         public MainForm()
@@ -83,7 +84,7 @@ namespace LenovoSettingsGui
             AutoScaleMode = AutoScaleMode.Dpi;
             Text = "EnergyControl for Lenovo";
             Icon = AppIcon.Create();
-            Font = new Font("Microsoft YaHei UI", 10F);
+            Font = new Font(UiText.FontFamily, 10F);
             BackColor = Color.White;
             ForeColor = Color.FromArgb(32, 35, 42);
             StartPosition = FormStartPosition.CenterScreen;
@@ -94,12 +95,12 @@ namespace LenovoSettingsGui
                 if (busy && e.CloseReason == CloseReason.UserClosing)
                 {
                     e.Cancel = true;
-                    SetStatus("操作进行中，请稍候", Color.FromArgb(100, 110, 125));
+                    SetStatus(UiText.Get("操作进行中，请稍候"), Color.FromArgb(100, 110, 125));
                 }
             };
             MinimumSize = new Size(560, 540);
             BuildLayout();
-            SetBusy(true, "正在读取...");
+            SetBusy(true, UiText.Get("正在读取..."));
             ResumeLayout(true);
             initialRefreshHandler = async delegate
             {
@@ -121,7 +122,7 @@ namespace LenovoSettingsGui
         private async Task RefreshStateAsync()
         {
             if (busy) return;
-            SetBusy(true, "正在读取...");
+            SetBusy(true, UiText.Get("正在读取..."));
             try
             {
                 DeviceState state = await Task.Run(
@@ -135,18 +136,18 @@ namespace LenovoSettingsGui
                 if (!String.IsNullOrWhiteSpace(state.ErrorCode) &&
                     state.ErrorCode != "0")
                     SetStatus(
-                        "设备返回错误 " + state.ErrorCode,
+                        UiText.Get("设备返回错误 ") + state.ErrorCode,
                         Color.FromArgb(180, 50, 45));
                 else if (unavailable == 4)
-                    SetStatus("设备设置接口不可用", Color.FromArgb(180, 50, 45));
+                    SetStatus(UiText.Get("设备设置接口不可用"), Color.FromArgb(180, 50, 45));
                 else if (unavailable > 0)
-                    SetStatus("部分设置不可用", Color.FromArgb(165, 105, 25));
+                    SetStatus(UiText.Get("部分设置不可用"), Color.FromArgb(165, 105, 25));
                 else
-                    SetStatus("读取成功", Color.FromArgb(30, 125, 78));
+                    SetStatus(UiText.Get("读取成功"), Color.FromArgb(30, 125, 78));
             }
             catch (Exception ex)
             {
-                ShowError("读取设备状态失败", ex);
+                ShowError(UiText.Get("读取设备状态失败"), ex);
             }
             finally
             {
@@ -157,22 +158,22 @@ namespace LenovoSettingsGui
         private Task ApplyChargeAsync(ModeItem selected)
         {
             if (selected == null) return Task.CompletedTask;
-            return ApplyChangeAsync("充电模式已更新", "设置充电模式失败", () =>
+            return ApplyChangeAsync(UiText.Get("充电模式已更新"), UiText.Get("设置充电模式失败"), () =>
             {
                 DeviceState before = client.ReadState();
                 if (!before.ChargeWritable || !String.IsNullOrWhiteSpace(before.ChargeError) ||
                     !ContainsMode(before.SupportedChargeModes, selected))
-                    throw new InvalidOperationException("设备当前不支持该充电模式，请刷新后重试。");
+                    throw new InvalidOperationException(UiText.Get("设备当前不支持该充电模式，请刷新后重试。"));
                 object response = client.SetCharge((ChargeMode)selected.Value);
                 if (!AddinResponse.IsSuccess(response))
                     throw new InvalidOperationException(
-                        "设备拒绝了充电模式设置（ErrorCode=" +
-                        (AddinResponse.ErrorCode(response) ?? "未知") + "）。");
+                        UiText.Get("设备拒绝了充电模式设置（ErrorCode=") +
+                        (AddinResponse.ErrorCode(response) ?? UiText.Get("未知")) + UiText.Get("）。"));
                 DeviceState result = client.ReadState();
                 if (!IsCurrent(selected, result.ChargeMode))
                     throw new InvalidOperationException(
-                        "设备未接受该设置，当前模式仍为 " +
-                        DisplayName(AllChargeModes, result.ChargeMode) + "。");
+                        UiText.Get("设备未接受该设置，当前模式仍为 ") +
+                        DisplayName(AllChargeModes, result.ChargeMode) + UiText.Get("。"));
                 return result;
             });
         }
@@ -180,39 +181,39 @@ namespace LenovoSettingsGui
         private Task ApplyPerformanceAsync(ModeItem selected)
         {
             if (selected == null) return Task.CompletedTask;
-            return ApplyChangeAsync("性能模式已更新", "设置性能模式失败", () =>
+            return ApplyChangeAsync(UiText.Get("性能模式已更新"), UiText.Get("设置性能模式失败"), () =>
             {
                 DeviceState before = client.ReadState();
                 if (!before.PerformanceWritable || !String.IsNullOrWhiteSpace(before.PerformanceError) ||
                     !ContainsMode(before.SupportedPerformanceModes, selected) ||
                     (selected.ContractName == "MMC_Geek" &&
                         String.Equals(before.IsGeekOptionGrey, "True", StringComparison.OrdinalIgnoreCase)))
-                    throw new InvalidOperationException("设备当前不支持该性能模式，请刷新后重试。");
+                    throw new InvalidOperationException(UiText.Get("设备当前不支持该性能模式，请刷新后重试。"));
                 object response = client.SetPerformance((PerformanceMode)selected.Value);
                 if (!AddinResponse.IsSuccess(response))
                     throw new InvalidOperationException(
-                        "设备拒绝了性能模式设置（ErrorCode=" +
-                        (AddinResponse.ErrorCode(response) ?? "未知") + "）。");
+                        UiText.Get("设备拒绝了性能模式设置（ErrorCode=") +
+                        (AddinResponse.ErrorCode(response) ?? UiText.Get("未知")) + UiText.Get("）。"));
                 DeviceState result = client.ReadState();
                 if (!IsCurrent(selected, result.PerformanceMode))
                     throw new InvalidOperationException(
-                        "设备未接受该设置，当前模式仍为 " +
+                        UiText.Get("设备未接受该设置，当前模式仍为 ") +
                         DisplayName(
                             AllPerformanceModes,
-                            result.PerformanceMode) + "。");
+                            result.PerformanceMode) + UiText.Get("。"));
                 return result;
             });
         }
 
         private Task ApplyThresholdAsync(int startValue, int stopValue)
         {
-            return ApplyChangeAsync("充电阈值已更新", "设置充电阈值失败", () =>
+            return ApplyChangeAsync(UiText.Get("充电阈值已更新"), UiText.Get("设置充电阈值失败"), () =>
             {
                 DeviceState before = client.ReadState();
                 if (!String.IsNullOrWhiteSpace(before.ThresholdError) ||
                     !before.ThresholdCapable || !before.ThresholdWritable)
                     throw new InvalidOperationException(
-                        "设备当前不支持写入自定义充电阈值，请刷新后重试。");
+                        UiText.Get("设备当前不支持写入自定义充电阈值，请刷新后重试。"));
                 client.SetThreshold(startValue, stopValue);
                 DeviceState result = client.ReadState();
                 if (!String.IsNullOrWhiteSpace(result.ThresholdError) ||
@@ -220,9 +221,9 @@ namespace LenovoSettingsGui
                     result.ThresholdStart != startValue ||
                     result.ThresholdStop != stopValue)
                     throw new InvalidOperationException(
-                        "设备未启用或未接受请求的阈值；当前为 " +
+                        UiText.Get("设备未启用或未接受请求的阈值；当前为 ") +
                         result.ThresholdStart + "% / " +
-                        result.ThresholdStop + "% 。");
+                        result.ThresholdStop + UiText.Get("% 。"));
                 return result;
             });
         }
@@ -230,72 +231,72 @@ namespace LenovoSettingsGui
         private Task ApplyKeyboardBacklightAsync(ModeItem selected)
         {
             if (selected == null) return Task.CompletedTask;
-            return ApplyChangeAsync("键盘背光已更新", "设置键盘背光失败", () =>
+            return ApplyChangeAsync(UiText.Get("键盘背光已更新"), UiText.Get("设置键盘背光失败"), () =>
             {
                 DeviceState before = client.ReadState();
                 if (!String.IsNullOrWhiteSpace(before.KeyboardBacklightError) ||
                     !before.KeyboardBacklightSupported ||
                     !before.KeyboardBacklightWritable ||
                     !SupportsKeyboardBacklightMode(before.KeyboardBacklightLevelCapability, selected))
-                    throw new InvalidOperationException("设备当前不支持该键盘背光档位，请刷新后重试。");
+                    throw new InvalidOperationException(UiText.Get("设备当前不支持该键盘背光档位，请刷新后重试。"));
                 object response = client.SetKeyboardBacklight(
                     (KeyboardBacklightLevel)selected.Value);
-                EnsureKeyboardResponseSuccess(response, "键盘背光");
+                EnsureKeyboardResponseSuccess(response, UiText.Get("键盘背光"));
                 DeviceState result = client.ReadState();
                 if (!IsCurrent(selected, result.KeyboardBacklightStatus))
                     throw new InvalidOperationException(
-                        "设备未接受该设置，当前为 " +
-                        KeyboardBacklightNames.DisplayName(result.KeyboardBacklightStatus) + "。");
+                        UiText.Get("设备未接受该设置，当前为 ") +
+                        KeyboardBacklightNames.DisplayName(result.KeyboardBacklightStatus) + UiText.Get("。"));
                 return result;
             });
         }
 
         private Task ApplyKeyboardBacklightReserveAsync(bool enabled)
         {
-            return ApplyChangeAsync("键盘背光保留状态已更新", "设置键盘背光保留状态失败", () =>
+            return ApplyChangeAsync(UiText.Get("键盘背光保留状态已更新"), UiText.Get("设置键盘背光保留状态失败"), () =>
             {
                 DeviceState before = client.ReadState();
                 if (!String.IsNullOrWhiteSpace(before.KeyboardBacklightError) ||
                     !before.KeyboardBacklightSupported ||
                     !before.KeyboardBacklightReserveWritable)
-                    throw new InvalidOperationException("设备当前不支持键盘背光保留状态。");
+                    throw new InvalidOperationException(UiText.Get("设备当前不支持键盘背光保留状态。"));
                 object response = client.SetKeyboardBacklightReserve(enabled);
-                EnsureKeyboardResponseSuccess(response, "键盘背光保留状态");
+                EnsureKeyboardResponseSuccess(response, UiText.Get("键盘背光保留状态"));
                 DeviceState result = client.ReadState();
                 if (!IsBooleanValue(result.KeyboardBacklightReserve, enabled))
-                    throw new InvalidOperationException("设备未接受键盘背光保留状态设置。");
+                    throw new InvalidOperationException(UiText.Get("设备未接受键盘背光保留状态设置。"));
                 return result;
             });
         }
 
         private Task ApplyKeyboardBacklightAutoDimAsync(bool enabled)
         {
-            return ApplyChangeAsync("键盘背光自动调暗已更新", "设置键盘背光自动调暗失败", () =>
+            return ApplyChangeAsync(UiText.Get("键盘背光自动调暗已更新"), UiText.Get("设置键盘背光自动调暗失败"), () =>
             {
                 DeviceState before = client.ReadState();
                 if (!String.IsNullOrWhiteSpace(before.KeyboardBacklightError) ||
                     !before.KeyboardBacklightSupported ||
                     !before.KeyboardBacklightAutoDimWritable)
-                    throw new InvalidOperationException("设备当前不支持键盘背光自动调暗。");
+                    throw new InvalidOperationException(UiText.Get("设备当前不支持键盘背光自动调暗。"));
                 object response = client.SetKeyboardBacklightAutoDim(enabled);
-                EnsureKeyboardResponseSuccess(response, "键盘背光自动调暗");
+                EnsureKeyboardResponseSuccess(response, UiText.Get("键盘背光自动调暗"));
                 DeviceState result = client.ReadState();
                 if (!IsBooleanValue(result.KeyboardBacklightAutoDimStatus, enabled))
-                    throw new InvalidOperationException("设备未接受键盘背光自动调暗设置。");
+                    throw new InvalidOperationException(UiText.Get("设备未接受键盘背光自动调暗设置。"));
                 return result;
             });
         }
 
         private Task RestoreKeyboardBacklightDefaultAsync()
         {
-            return ApplyChangeAsync("键盘背光已恢复默认", "恢复键盘背光默认设置失败", () =>
+            return ApplyChangeAsync(UiText.Get("键盘背光已恢复默认"), UiText.Get("恢复键盘背光默认设置失败"), () =>
             {
                 DeviceState before = client.ReadState();
                 if (!before.KeyboardBacklightSupported || !before.KeyboardBacklightRestoreWritable ||
                     !String.IsNullOrWhiteSpace(before.KeyboardBacklightError))
-                    throw new InvalidOperationException("设备当前不支持恢复键盘背光默认设置。");
+                    throw new InvalidOperationException(UiText.Get("设备当前不支持恢复键盘背光默认设置。"));
                 object response = client.RestoreKeyboardBacklightDefault();
-                EnsureKeyboardResponseSuccess(response, "键盘背光恢复默认");
+                EnsureKeyboardResponseSuccess(response, UiText.Get("键盘背光恢复默认"));
                 return client.ReadState();
             });
         }
@@ -303,7 +304,7 @@ namespace LenovoSettingsGui
         private async Task ApplyChangeAsync(string success, string failure, Func<DeviceState> operation)
         {
             if (busy) return;
-            SetBusy(true, "正在应用...");
+            SetBusy(true, UiText.Get("正在应用..."));
             try
             {
                 DeviceState state = await Task.Run(operation);
@@ -334,26 +335,26 @@ namespace LenovoSettingsGui
                         state.ShowGeekAsCreator,
                         "True",
                         StringComparison.OrdinalIgnoreCase)
-                        ? "创作模式"
-                        : "极客模式";
+                        ? UiText.Get("创作模式")
+                        : UiText.Get("极客模式");
                 if (item.ContractName == "MMC_Cool")
                     item.DisplayName = String.Equals(
                         state.ShowBsmAsQuietBsm,
                         "True",
                         StringComparison.OrdinalIgnoreCase)
-                        ? "安静 / 冷却"
-                        : "安静 / 节能";
+                        ? UiText.Get("安静 / 冷却")
+                        : UiText.Get("安静 / 节能");
             }
 
             if (String.IsNullOrWhiteSpace(state.ChargeError))
             {
                 chargeCurrent.Text =
-                    "当前：" + DisplayName(AllChargeModes, state.ChargeMode);
+                    UiText.Get("当前：") + DisplayName(AllChargeModes, state.ChargeMode);
                     chargeSupported.Text =
-                        "支持：" + DisplaySupported(
+                        UiText.Get("支持：") + DisplaySupported(
                             AllChargeModes,
                         state.SupportedChargeModes) +
-                        (state.ChargeWritable ? "" : "（只读）") +
+                        (state.ChargeWritable ? "" : UiText.Get("（只读）")) +
                         (String.IsNullOrWhiteSpace(state.ChargeBackend)
                             ? ""
                             : "  ·  " + state.ChargeBackend);
@@ -366,8 +367,8 @@ namespace LenovoSettingsGui
             }
             else
             {
-                chargeCurrent.Text = "当前：不可用";
-                chargeSupported.Text = "说明：" + ShortMessage(state.ChargeError);
+                chargeCurrent.Text = UiText.Get("当前：不可用");
+                chargeSupported.Text = UiText.Get("说明：") + ShortMessage(state.ChargeError);
                 ClearModes(chargeModes);
             }
 
@@ -376,23 +377,23 @@ namespace LenovoSettingsGui
                 if (state.ThresholdCapable)
                 {
                     thresholdCurrent.Text = state.ThresholdEnabled
-                        ? "当前：低于 " + state.ThresholdStart + "% 开始，充到 " +
-                            state.ThresholdStop + "% 停止"
-                        : "当前：阈值未启用（设备返回 " + state.ThresholdStart +
-                            "% / " + state.ThresholdStop + "%）";
+                        ? UiText.Get("当前：低于 ") + state.ThresholdStart + UiText.Get("% 开始，充到 ") +
+                            state.ThresholdStop + UiText.Get("% 停止")
+                        : UiText.Get("当前：阈值未启用（设备返回 ") + state.ThresholdStart +
+                            "% / " + state.ThresholdStop + UiText.Get("%）");
                     thresholdSupported.Text = state.ThresholdWritable
-                        ? "支持：可设置起充和停充百分比"
-                        : "支持：只读";
+                        ? UiText.Get("支持：可设置起充和停充百分比")
+                        : UiText.Get("支持：只读");
                     thresholdStart.Value = ClampThreshold(state.ThresholdStart, 0, 100);
                     thresholdStop.Value = ClampThreshold(state.ThresholdStop, 1, 100);
                 }
                 else
                 {
-                    thresholdCurrent.Text = "当前：不支持自定义百分比";
+                    thresholdCurrent.Text = UiText.Get("当前：不支持自定义百分比");
                     thresholdSupported.Text = String.IsNullOrWhiteSpace(
                         state.ChargeLimitInfo)
-                        ? "说明：固件未报告自定义阈值能力"
-                        : "养护模式：" + state.ChargeLimitInfo;
+                        ? UiText.Get("说明：固件未报告自定义阈值能力")
+                        : UiText.Get("养护模式：") + state.ChargeLimitInfo;
                 }
                 thresholdAvailable = state.ThresholdCapable && state.ThresholdWritable;
                 thresholdControls.Visible = thresholdAvailable;
@@ -400,11 +401,11 @@ namespace LenovoSettingsGui
             }
             else
             {
-                thresholdCurrent.Text = "当前：自定义百分比不可用";
+                thresholdCurrent.Text = UiText.Get("当前：自定义百分比不可用");
                 thresholdSupported.Text = String.IsNullOrWhiteSpace(
                     state.ChargeLimitInfo)
-                    ? "说明：" + ShortMessage(state.ThresholdError)
-                    : "养护模式：" + state.ChargeLimitInfo;
+                    ? UiText.Get("说明：") + ShortMessage(state.ThresholdError)
+                    : UiText.Get("养护模式：") + state.ChargeLimitInfo;
                 thresholdAvailable = false;
                 thresholdControls.Visible = false;
                 thresholdControls.Enabled = false;
@@ -413,14 +414,14 @@ namespace LenovoSettingsGui
             if (String.IsNullOrWhiteSpace(state.PerformanceError))
             {
                 performanceCurrent.Text =
-                    "当前：" + DisplayName(
+                    UiText.Get("当前：") + DisplayName(
                         AllPerformanceModes,
                         state.PerformanceMode);
                     performanceSupported.Text =
-                        "支持：" + DisplaySupported(
+                        UiText.Get("支持：") + DisplaySupported(
                             AllPerformanceModes,
                         state.SupportedPerformanceModes) +
-                        (state.PerformanceWritable ? "" : "（只读）");
+                        (state.PerformanceWritable ? "" : UiText.Get("（只读）"));
                 FillModes(
                     performanceModes,
                     AllPerformanceModes,
@@ -430,19 +431,19 @@ namespace LenovoSettingsGui
             }
             else
             {
-                performanceCurrent.Text = "当前：不可用";
-                performanceSupported.Text = "说明：" + ShortMessage(state.PerformanceError);
+                performanceCurrent.Text = UiText.Get("当前：不可用");
+                performanceSupported.Text = UiText.Get("说明：") + ShortMessage(state.PerformanceError);
                 ClearModes(performanceModes);
             }
 
             if (String.IsNullOrWhiteSpace(state.KeyboardBacklightError) &&
                 state.KeyboardBacklightSupported)
             {
-                keyboardBacklightCurrent.Text = "当前：" +
+                keyboardBacklightCurrent.Text = UiText.Get("当前：") +
                     KeyboardBacklightNames.DisplayName(state.KeyboardBacklightStatus);
                 keyboardBacklightSupported.Text =
-                    "支持：" + DisplayKeyboardBacklightSupported(state.KeyboardBacklightLevelCapability) +
-                    (state.KeyboardBacklightWritable ? "" : "（只读）");
+                    UiText.Get("支持：") + DisplayKeyboardBacklightSupported(state.KeyboardBacklightLevelCapability) +
+                    (state.KeyboardBacklightWritable ? "" : UiText.Get("（只读）"));
                 FillKeyboardBacklightModes(
                     keyboardBacklightModes,
                     state.KeyboardBacklightLevelCapability,
@@ -453,16 +454,16 @@ namespace LenovoSettingsGui
                 keyboardBacklightReserveButton.Enabled = state.KeyboardBacklightReserveWritable && !busy;
                 keyboardBacklightAutoDimButton.Tag = state.KeyboardBacklightAutoDimStatus;
                 keyboardBacklightAutoDimButton.Checked = IsTrue(state.KeyboardBacklightAutoDimStatus);
-                keyboardBacklightAutoDimButton.Text = state.KeyboardBacklightAutoDimWritable ? "自动调暗" : "自动调暗（不可用）";
+                keyboardBacklightAutoDimButton.Text = state.KeyboardBacklightAutoDimWritable ? UiText.Get("自动调暗") : UiText.Get("自动调暗（不可用）");
                 keyboardBacklightAutoDimButton.Enabled = state.KeyboardBacklightAutoDimWritable && !busy;
                 keyboardBacklightDefaultButton.Enabled = state.KeyboardBacklightWritable && !busy;
             }
             else
             {
-                keyboardBacklightCurrent.Text = "当前：不可用";
-                keyboardBacklightSupported.Text = "说明：" + ShortMessage(
+                keyboardBacklightCurrent.Text = UiText.Get("当前：不可用");
+                keyboardBacklightSupported.Text = UiText.Get("说明：") + ShortMessage(
                     String.IsNullOrWhiteSpace(state.KeyboardBacklightError)
-                        ? "设备未报告键盘背光能力。"
+                        ? UiText.Get("设备未报告键盘背光能力。")
                         : state.KeyboardBacklightError);
                 ClearModes(keyboardBacklightModes);
                 keyboardBacklightReserveButton.Enabled = false;
@@ -515,8 +516,8 @@ namespace LenovoSettingsGui
                             {
                                 if (MessageBox.Show(
                                     this,
-                                    "确认切换为“" + item.DisplayName + "”吗？",
-                                    "确认设置",
+                                    UiText.Get("确认切换为“") + item.DisplayName + UiText.Get("”吗？"),
+                                    UiText.Get("确认设置"),
                                     MessageBoxButtons.YesNo,
                                     MessageBoxIcon.Question) != DialogResult.Yes)
                                     return;
@@ -561,8 +562,8 @@ namespace LenovoSettingsGui
                         if (busy || button.Checked) return;
                         if (MessageBox.Show(
                             this,
-                            "确认切换键盘背光为“" + item.DisplayName + "”吗？",
-                            "确认设置",
+                            UiText.Get("确认切换键盘背光为“") + item.DisplayName + UiText.Get("”吗？"),
+                            UiText.Get("确认设置"),
                             MessageBoxButtons.YesNo,
                             MessageBoxIcon.Question) != DialogResult.Yes)
                             return;
@@ -598,18 +599,18 @@ namespace LenovoSettingsGui
             if (unknown.Count > 0)
             {
                 int shown = Math.Min(2, unknown.Count);
-                names.Add("其他（" + String.Join("、", unknown.GetRange(0, shown)) +
-                    (unknown.Count > shown ? " 等" : "") + "）");
+                names.Add(UiText.Get("其他（") + String.Join(UiText.Get("、"), unknown.GetRange(0, shown)) +
+                    (unknown.Count > shown ? UiText.Get(" 等") : "") + UiText.Get("）"));
             }
-            return names.Count == 0 ? "未报告" : String.Join("、", names);
+            return names.Count == 0 ? UiText.Get("未报告") : String.Join(UiText.Get("、"), names);
         }
 
-        private static string DisplayKeyboardBacklightSupported(string capability)
+        private string DisplayKeyboardBacklightSupported(string capability)
         {
             var names = new List<string>();
             foreach (ModeItem item in AllKeyboardBacklightModes)
                 if (SupportsKeyboardBacklightMode(capability, item)) names.Add(item.DisplayName);
-            return names.Count == 0 ? "未报告" : String.Join("、", names);
+            return names.Count == 0 ? UiText.Get("未报告") : String.Join(UiText.Get("、"), names);
         }
 
         private static bool SupportsKeyboardBacklightMode(string capability, ModeItem item)
@@ -634,7 +635,7 @@ namespace LenovoSettingsGui
                 if (IsCurrent(item, contractName))
                     return item.DisplayName;
             return String.IsNullOrWhiteSpace(contractName)
-                ? "未知"
+                ? UiText.Get("未知")
                 : contractName;
         }
 
@@ -668,15 +669,15 @@ namespace LenovoSettingsGui
         private static void EnsureKeyboardResponseSuccess(object response, string feature)
         {
             if (response is bool && !(bool)response)
-                throw new InvalidOperationException(feature + "设置被设备拒绝。");
+                throw new InvalidOperationException(feature + UiText.Get("设置被设备拒绝。"));
             if (!KeyboardBacklightResponse.IsSuccess(response))
-                throw new InvalidOperationException(feature + "设置被设备拒绝（ErrorCode=" +
-                    KeyboardBacklightResponse.ErrorCode(response) + "）。");
+                throw new InvalidOperationException(feature + UiText.Get("设置被设备拒绝（ErrorCode=") +
+                    KeyboardBacklightResponse.ErrorCode(response) + UiText.Get("）。"));
         }
 
         private static string ShortMessage(string value)
         {
-            if (String.IsNullOrWhiteSpace(value)) return "未报告";
+            if (String.IsNullOrWhiteSpace(value)) return UiText.Get("未报告");
             return value;
         }
 
@@ -689,12 +690,8 @@ namespace LenovoSettingsGui
         {
             MessageBox.Show(
                 this,
-                "EnergyControl for Lenovo\n\n" +
-                "v0.1.0-preview.1 · GPL-3.0-only\n" +
-                "Unofficial community utility for compatible Lenovo systems.\n\n" +
-                "Direct charging is the stable path. Performance, keyboard backlight and custom percentage thresholds are experimental.\n" +
-                "This application does not include Lenovo private components, does not send telemetry, and does not represent Lenovo.",
-                "关于 EnergyControl",
+                UiText.Get("EnergyControl for Lenovo\n\nv0.1.0-preview.1 | GPL-3.0-only\n\n适用于兼容 Lenovo 设备的非官方工具。\n性能、背光和自定义充电阈值为实验功能。\n不包含 Lenovo 私有组件或遥测。"),
+                UiText.Get("关于 EnergyControl"),
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
         }
@@ -702,6 +699,22 @@ namespace LenovoSettingsGui
         private void ShowDiagnostics()
         {
             settingsTabs.SelectedTab = diagnosticsPage;
+        }
+
+        private void ShowHelp()
+        {
+            try
+            {
+                string path = System.IO.Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "README.html");
+                string target = System.IO.File.Exists(path)
+                    ? new Uri(path).AbsoluteUri + "?lang=" + UiText.Language
+                    : "https://github.com/ethandong16/EnergyControl-for-Lenovo/blob/main/" + UiText.ReadmeFile;
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(target)
+                {
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex) { ShowError(UiText.Get("无法打开帮助"), ex); }
         }
 
         private void SetBusy(bool value, string message)
@@ -746,7 +759,7 @@ namespace LenovoSettingsGui
         private void ShowError(string title, Exception exception)
         {
             Exception cause = exception.GetBaseException();
-            SetStatus("操作失败", Color.FromArgb(180, 50, 45));
+            SetStatus(UiText.Get("操作失败"), Color.FromArgb(180, 50, 45));
             MessageBox.Show(
                 this,
                 cause.Message,
@@ -760,6 +773,8 @@ namespace LenovoSettingsGui
     {
         internal static void Run()
         {
+            System.Globalization.CultureInfo.DefaultThreadCurrentUICulture =
+                System.Globalization.CultureInfo.CurrentUICulture;
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new MainForm());

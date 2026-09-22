@@ -11,9 +11,9 @@ $stage = Join-Path $projectDir 'release-stage'
 if (Test-Path -LiteralPath $stage) { Remove-Item -LiteralPath $stage -Recurse -Force }
 New-Item -ItemType Directory -Path $stage -Force | Out-Null
 Copy-Item (Join-Path $projectDir 'artifacts\publish\EnergyControl.exe') $stage
-Copy-Item (Join-Path $projectDir 'README.md'), (Join-Path $projectDir 'README.zh-CN.md'),
-    (Join-Path $projectDir 'LICENSE'),
-    (Join-Path $projectDir 'CHANGELOG.md'), (Join-Path $projectDir 'DISCLAIMER.md') $stage
+Copy-Item -Path (Join-Path $projectDir '*.md') -Destination $stage
+Copy-Item -LiteralPath (Join-Path $projectDir 'LICENSE') -Destination $stage
+Copy-Item -LiteralPath (Join-Path $projectDir 'artifacts\publish\README.html') -Destination $stage
 Copy-Item -LiteralPath (Join-Path $projectDir 'docs') -Destination $stage -Recurse
 
 $zip = Join-Path $projectDir ("EnergyControl-for-Lenovo-$Version-windows-x64.zip")
