@@ -29,6 +29,7 @@ jobs:
           New-Item -ItemType Directory -Path $stage -Force | Out-Null
           Copy-Item .\artifacts\publish\EnergyControl.exe $stage
           Copy-Item .\README.md, .\README.zh-CN.md, .\LICENSE, .\CHANGELOG.md, .\DISCLAIMER.md $stage
+          Copy-Item -LiteralPath .\docs -Destination $stage -Recurse
           $forbidden = Get-ChildItem $stage -Recurse -File | Where-Object {
             $_.Name -match 'Lenovo|Newtonsoft|Contract|Addin|\.pdb$|\.log$'
           }

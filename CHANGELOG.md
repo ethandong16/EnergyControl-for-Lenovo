@@ -2,6 +2,14 @@
 
 All notable changes to EnergyControl for Lenovo are documented here.
 
+## [Unreleased]
+
+- Organize the desktop interface into battery, performance, keyboard and diagnostics tabs.
+- Split device aggregation, layout and UI operations into separate modules.
+- Fix backlight actions staying disabled after refresh and reject unknown switch states.
+- Refresh bilingual documentation with a dependency matrix, command reference and GUI screenshot.
+- Verify all tabs and capability transitions at multiple window sizes and DPI scales.
+
 ## [0.1.0-preview.1] - 2026-09-18
 
 ### Added

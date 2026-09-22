@@ -14,6 +14,7 @@ Copy-Item (Join-Path $projectDir 'artifacts\publish\EnergyControl.exe') $stage
 Copy-Item (Join-Path $projectDir 'README.md'), (Join-Path $projectDir 'README.zh-CN.md'),
     (Join-Path $projectDir 'LICENSE'),
     (Join-Path $projectDir 'CHANGELOG.md'), (Join-Path $projectDir 'DISCLAIMER.md') $stage
+Copy-Item -LiteralPath (Join-Path $projectDir 'docs') -Destination $stage -Recurse
 
 $zip = Join-Path $projectDir ("EnergyControl-for-Lenovo-$Version-windows-x64.zip")
 if (Test-Path -LiteralPath $zip) { Remove-Item -LiteralPath $zip -Force }

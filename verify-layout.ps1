@@ -1,14 +1,25 @@
-﻿param([switch]$LiveRead)
+param(
+    [switch]$LiveRead,
+    [string]$Executable,
+    [string]$ScreenshotDirectory
+)
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 [System.Windows.Forms.Application]::EnableVisualStyles()
 $projectDir = $PSScriptRoot
-$exePath = Join-Path $projectDir 'bin\Release\net48\EnergyControl.exe'
+$exePath = $Executable
+if ([String]::IsNullOrWhiteSpace($exePath)) {
+    $exePath = Join-Path $projectDir 'bin\Release\net48\EnergyControl.exe'
+}
 if (-not (Test-Path -LiteralPath $exePath)) {
     $exePath = Join-Path $projectDir 'artifacts\publish\EnergyControl.exe'
 }
 $asm = [Reflection.Assembly]::LoadFrom($exePath)
+if ([String]::IsNullOrWhiteSpace($ScreenshotDirectory)) {
+    $ScreenshotDirectory = Join-Path $projectDir 'artifacts\layout'
+}
+New-Item -ItemType Directory -Path $ScreenshotDirectory -Force | Out-Null
 $flags = [Reflection.BindingFlags]'Instance,NonPublic,Public'
 $allFlags = [Reflection.BindingFlags]'Static,Instance,NonPublic,Public'
 $formType = $asm.GetType('LenovoSettingsGui.MainForm', $true)
@@ -25,6 +36,7 @@ $sample = @{
         ThresholdCapable=$true; ThresholdEnabled=$true; ThresholdWritable=$true
         ThresholdStart=75; ThresholdStop=80
         KeyboardBacklightSupported=$true; KeyboardBacklightWritable=$true
+        KeyboardBacklightRestoreWritable=$true
         KeyboardBacklightReserveWritable=$true; KeyboardBacklightAutoDimWritable=$false
         KeyboardBacklightStatus='Level_2'; KeyboardBacklightLevelCapability='TwoLevelsAuto'
         KeyboardBacklightReserve='False'; KeyboardBacklightAutoDimCapability='False'
@@ -109,6 +121,7 @@ function GetFontSnapshot([System.Windows.Forms.Control]$control) {
 }
 function CheckTree([System.Windows.Forms.Control]$control) {
     foreach ($child in $control.Controls) {
+        if (-not $child.Visible) { continue }
         if (-not $control.ClientRectangle.Contains($child.Bounds) -and
             -not $control.AutoScroll) {
             throw ("Clipped control: '{0}', bounds {1}, parent {2}" -f $child.Text,$child.Bounds,$control.ClientRectangle)
@@ -121,7 +134,7 @@ function CheckTree([System.Windows.Forms.Control]$control) {
         }
         CheckTree $child
     }
-    $children = @($control.Controls)
+    $children = @($control.Controls | Where-Object Visible)
     for ($i=0; $i -lt $children.Count; $i++) {
         for ($j=$i+1; $j -lt $children.Count; $j++) {
             if ($children[$i].Bounds.IntersectsWith($children[$j].Bounds)) {
@@ -174,10 +187,33 @@ foreach ($scenario in $scenarios) {
         LayoutTree $form
         $bitmap = [Drawing.Bitmap]::new($form.Width,$form.Height)
         try {
-            $form.DrawToBitmap($bitmap,[Drawing.Rectangle]::new(0,0,$form.Width,$form.Height))
-            LayoutTree $form
-            CheckTree $form
-            $bitmap.Save((Join-Path $projectDir ('layout-'+$scenario.Name+'.png')),[Drawing.Imaging.ImageFormat]::Png)
+            $tabs = $formType.GetField('settingsTabs',$flags).GetValue($form)
+            if ($tabs.TabPages.Count -ne 4) { throw 'Expected battery, performance, keyboard and diagnostics tabs' }
+            for ($tabIndex = 0; $tabIndex -lt $tabs.TabPages.Count; $tabIndex++) {
+                $tabs.SelectedIndex = $tabIndex
+                [System.Windows.Forms.Application]::DoEvents()
+                LayoutTree $form
+                $form.DrawToBitmap($bitmap,[Drawing.Rectangle]::new(0,0,$form.Width,$form.Height))
+                CheckTree $form
+                $bitmap.Save((Join-Path $ScreenshotDirectory ('layout-'+$scenario.Name+'-'+$tabIndex+'.png')),[Drawing.Imaging.ImageFormat]::Png)
+            }
+            $tabs.SelectedIndex = 2
+            $formType.GetMethod('SetBusy',$flags).Invoke($form,@($true,$null)) | Out-Null
+            $formType.GetMethod('DisplayState',$flags).Invoke($form,@($state)) | Out-Null
+            $reserve = $formType.GetField('keyboardBacklightReserveButton',$flags).GetValue($form)
+            $autoDim = $formType.GetField('keyboardBacklightAutoDimButton',$flags).GetValue($form)
+            $restore = $formType.GetField('keyboardBacklightDefaultButton',$flags).GetValue($form)
+            if ($reserve.Enabled -or $autoDim.Enabled -or $restore.Enabled) {
+                throw 'Keyboard actions must be disabled during refresh'
+            }
+            $formType.GetMethod('SetBusy',$flags).Invoke($form,@($false,$null)) | Out-Null
+            if (-not $reserve.Enabled -or -not $restore.Enabled -or $autoDim.Enabled) {
+                throw 'Refresh must restore supported actions and keep unsupported auto-dim disabled'
+            }
+            $booleanCheck = $formType.GetMethod('IsBooleanValue',$allFlags)
+            if ($booleanCheck.Invoke($null,@('NoCapability',$false))) {
+                throw 'Unknown boolean state must not be treated as Off'
+            }
             $chargePanel = $formType.GetField('chargeModes',$flags).GetValue($form)
             $thresholdPanel = $formType.GetField('thresholdControls',$flags).GetValue($form)
             $performancePanel = $formType.GetField('performanceModes',$flags).GetValue($form)
@@ -206,6 +242,27 @@ foreach ($scenario in $scenarios) {
                             $button.Text,$button.Bounds,$panel.ClientRectangle)
                     }
                 }
+            }
+            $unavailable = [Activator]::CreateInstance($stateType,$true)
+            foreach ($key in @('ChargeError','ThresholdError','PerformanceError','KeyboardBacklightError')) {
+                $stateType.GetField($key,$flags).SetValue($unavailable,
+                    'The optional device service is unavailable. Refresh after checking the installed components.')
+            }
+            $formType.GetMethod('DisplayState',$flags).Invoke($form,@($unavailable)) | Out-Null
+            LayoutTree $form
+            CheckTree $form
+            if ($reserve.Enabled -or $autoDim.Enabled -or $restore.Enabled -or $backlightPanel.Controls.Count) {
+                throw 'Unavailable keyboard must not expose writable controls'
+            }
+            $tabs.SelectedIndex = 0
+            [System.Windows.Forms.Application]::DoEvents()
+            LayoutTree $form
+            CheckTree $form
+            if ($thresholdPanel.Visible) { throw 'Unavailable threshold editor must be hidden on the active tab' }
+            $formType.GetMethod('DisplayState',$flags).Invoke($form,@($state)) | Out-Null
+            $tabs.SelectedIndex = 2
+            if (-not $reserve.Enabled -or -not $restore.Enabled) {
+                throw 'Controls must recover when the device becomes available'
             }
             Write-Output ($scenario.Name + ': PASS ' + $form.ClientSize)
         } finally { $bitmap.Dispose() }

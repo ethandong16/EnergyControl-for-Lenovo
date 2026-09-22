@@ -4,90 +4,115 @@ English | [简体中文](README.zh-CN.md)
 
 [![CI](https://github.com/ethandong16/EnergyControl-for-Lenovo/actions/workflows/ci.yml/badge.svg)](https://github.com/ethandong16/EnergyControl-for-Lenovo/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/ethandong16/EnergyControl-for-Lenovo?include_prereleases)](https://github.com/ethandong16/EnergyControl-for-Lenovo/releases)
-[![License](https://img.shields.io/github/license/ethandong16/EnergyControl-for-Lenovo)](LICENSE)
+[![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
-EnergyControl for Lenovo is an unofficial, community-maintained Windows utility for reading and controlling charging modes on compatible Lenovo systems. The current public preview is `v0.1.0-preview.1`.
+A portable Windows utility for charging, performance modes and keyboard backlight on compatible Lenovo laptops. One executable provides a Chinese desktop interface and a command-line interface.
 
-## Features
+Unofficial and community maintained. No Lenovo private DLLs, telemetry, background service, installer or automatic updater.
 
-- **Stable:** direct charging control through the installed Windows driver (`EnergyDrv`).
-- **Experimental:** performance modes, custom start/stop percentage thresholds, and Lenovo keyboard backlight controls.
-- A single portable `EnergyControl.exe`: double-click it for the GUI or pass arguments for CLI mode.
-- No telemetry, background service, installer, automatic updater, or startup task.
-- Lenovo Vantage and Commercial Vantage components are optional runtime integrations only.
-- No Lenovo private DLL is committed to the repository or included in a release package.
+## Get Started
 
-## Download
+1. Download and extract the Windows x64 ZIP from [Releases](https://github.com/ethandong16/EnergyControl-for-Lenovo/releases).
+2. Compare its SHA-256 with the accompanying checksum file using `Get-FileHash .\<downloaded-file>.zip -Algorithm SHA256`.
+3. Double-click `EnergyControl.exe` for the GUI, or run `.\EnergyControl.exe diagnose` in PowerShell.
 
-Download the unsigned Windows x64 preview ZIP from the [Releases](https://github.com/ethandong16/EnergyControl-for-Lenovo/releases) page and verify its accompanying `.sha256` file before running it.
+Requires Windows 10/11 x64 and .NET Framework 4.8. Releases are unsigned. Source on `main` may contain changes not yet included in a release.
 
-The preview is not code-signed, so Windows SmartScreen may display a warning.
+## Features and Dependencies
 
-## Requirements
+| Feature | Controls | Runtime dependency |
+| --- | --- | --- |
+| Charging | Normal, conservation, express | Compatible Lenovo EnergyDrv / ACPIVPC driver; optional Addin fallback |
+| Charge thresholds (experimental) | Start and stop percentages | Lenovo Power RPC service and firmware support |
+| Performance (experimental) | Auto, quiet, performance, geek/creator | Compatible installed Lenovo Addin |
+| Keyboard backlight (experimental) | Off, level 1, level 2, auto; remember state, auto-dim, restore defaults | Compatible installed IdeaNotebookAddin and firmware |
+| Diagnostics | Availability, states and errors | Available integrations are queried independently |
 
-- Windows 10 or Windows 11, x64.
-- The system-provided .NET Framework 4.8 runtime.
-- A compatible Lenovo charging driver for direct control. Non-Lenovo and unsupported systems safely report the feature as unavailable.
+Settings vary by model. Conservation uses a firmware-defined limit and **does not imply arbitrary percentage support**. Automatic performance transition is also available through the CLI.
 
-## Usage
+Backlight reads have been verified with IdeaNotebookAddin `1.0.13.79`: the observed device reported `TwoLevelsAuto` and no auto-dim support. Request construction is tested; hardware writes have not been verified across devices. See [compatibility](COMPATIBILITY.md) and [backlight interface notes](KEYBOARD_BACKLIGHT_INTERFACE.md).
 
-Double-click `EnergyControl.exe` to open the GUI. The same executable supports CLI commands:
+## Desktop Interface
 
-```text
-EnergyControl.exe status
-EnergyControl.exe diagnose
-EnergyControl.exe charge direct get
-EnergyControl.exe charge threshold get
-EnergyControl.exe performance get
-EnergyControl.exe keyboard-backlight get
-EnergyControl.exe keyboard-backlight capability
+Battery, performance, keyboard and diagnostics have separate tabs. Refresh and status remain visible. Mode selectors reflect the last device read, and checkboxes represent backlight switches. Unsupported actions are disabled; unavailable threshold editors are hidden.
 
-# Every write requires the explicit safety flag:
-EnergyControl.exe charge direct set conservation --apply
-EnergyControl.exe charge threshold set 75 80 --apply
-EnergyControl.exe performance set performance --apply
-EnergyControl.exe keyboard-backlight set level1 --apply
-EnergyControl.exe keyboard-backlight reserve on --apply
-EnergyControl.exe keyboard-backlight auto-dim on --apply
-EnergyControl.exe keyboard-backlight restore-default --apply
-```
+Changes require confirmation and are followed by a fresh device read. The diagnostics tab preserves full errors and the last read time. Switching tabs does not query hardware.
 
-Without `--apply`, a write command exits before opening a driver write path or invoking an optional setter.
+![Keyboard settings](docs/images/keyboard.png)
 
-## Important limitations
+*Current source GUI with simulated device data for layout verification. Available controls depend on your machine.*
 
-- Firmware conservation mode is not the same as an arbitrary percentage threshold. A device may expose a fixed 80% maintenance mode without supporting custom values such as 75–85%.
-- Optional Vantage or Power RPC features may be unavailable, return RPC error `1722`, or be rejected by firmware. These failures do not disable the direct charging path.
-- Keyboard backlight controls use the installed `IdeaNotebookAddin` from Lenovo Vantage or Lenovo Baiying. Supported levels and write methods vary by model and firmware; `auto-dim` is only enabled when the device reports that capability.
-- Driver writes can affect battery behavior. Run read-only diagnostics first and review the GUI confirmation before applying a change.
-- This project is not Lenovo software, is not endorsed by Lenovo, and does not use a Lenovo logo or distribute Lenovo private components.
+## Command Line
 
-See [COMPATIBILITY.md](COMPATIBILITY.md) for device-family differences and [INTERFACES.md](INTERFACES.md) for protocol details.
-
-## Build from source
-
-The SDK-style project targets .NET Framework 4.8 and restores the public `Microsoft.NETFramework.ReferenceAssemblies.net48` package at build time. Lenovo DLLs are not required to compile the project or run its automated tests.
+Read-only queries:
 
 ```powershell
-.\build.ps1 -Clean
+.\EnergyControl.exe status
+.\EnergyControl.exe diagnose
+.\EnergyControl.exe charge direct get
+.\EnergyControl.exe charge threshold get
+.\EnergyControl.exe performance get
+.\EnergyControl.exe keyboard-backlight get
+.\EnergyControl.exe keyboard-backlight capability
+```
+
+Every write requires `--apply`. These are independent examples, not a sequence to run:
+
+```powershell
+.\EnergyControl.exe charge direct set conservation --apply
+.\EnergyControl.exe charge threshold set 75 80 --apply
+.\EnergyControl.exe performance set quiet --apply
+.\EnergyControl.exe performance auto-transition on --apply
+.\EnergyControl.exe keyboard-backlight set level1 --apply
+.\EnergyControl.exe keyboard-backlight reserve on --apply
+.\EnergyControl.exe keyboard-backlight auto-dim on --apply
+.\EnergyControl.exe keyboard-backlight restore-default --apply
+```
+
+| Command | Accepted values |
+| --- | --- |
+| `charge direct set` or `charge set` | `normal`, `conservation`, `express` |
+| `performance set` | `auto`, `quiet`, `performance`, `geek` |
+| `keyboard-backlight set` | `off`, `level1`, `level2`, `auto` |
+| `reserve`, `auto-dim`, `performance auto-transition` | `on`, `off` |
+
+`charge get/set` uses the optional Addin; `charge direct get/set` uses EnergyDrv. `backlight` aliases `keyboard-backlight`. Run `help` for the command reference. Exit codes: `0` success, `1` operation failure or missing `--apply`, `2` invalid command or mode.
+
+## Troubleshooting
+
+| Symptom | Check |
+| --- | --- |
+| IdeaNotebookAddin not found | Install or repair compatible Lenovo Vantage components. Baiying alone does not guarantee this Addin is installed. |
+| Power RPC error `1722` | The required service is unavailable. Direct charging can still work independently. |
+| EnergyDrv cannot be opened | Check the Lenovo ACPIVPC driver and access permissions. |
+| Setting unavailable or rejected | Read diagnostics and check firmware support; do not infer support from another model. |
+
+For integration testing, `LENOVO_SETTINGS_ADDIN_PATH` and `LENOVO_POWER_RPC_PATH` can point to trusted installed assemblies or their directories.
+
+## Build and Verify
+
+Use a .NET SDK capable of building SDK-style `net48` projects on Windows and PowerShell 7 for test scripts. Restore downloads public .NET Framework reference assemblies; compilation does not require Lenovo DLLs.
+
+```powershell
+.\build.ps1
 .\tests\run-tests.ps1
 .\verify-layout.ps1
 ```
 
-The portable executable is copied to `artifacts\publish\EnergyControl.exe`. Optional Lenovo integrations are discovered from installed system locations at runtime and are never packaged by the build.
+The portable executable is written to `artifacts\publish\EnergyControl.exe`. Close running build outputs before rebuilding. `-Clean` removes previous build output.
 
-## Privacy and security
+Protocol and dependency tests run without Lenovo hardware. Real request construction is skipped when the Addin is absent. GUI tests use simulated states, check four tabs at narrow/wide sizes and 100/150/200% scaling, and save screenshots under `artifacts\layout`. Tests do not apply hardware settings.
 
-EnergyControl has no telemetry, analytics, network client, or automatic update service. Diagnostics are local and read-only.
+| Source | Responsibility |
+| --- | --- |
+| `Gui.cs` | UI state, confirmations and asynchronous operations |
+| `Gui.Layout.cs` | Tabs, controls and diagnostic presentation |
+| `GuiDeviceClient.cs` | Device state and integration aggregation |
+| `Program.cs` | CLI |
+| `DirectChargeMode.cs`, `ChargeThreshold.cs`, `Models.cs`, `KeyboardBacklight.cs` | Device backends |
 
-Report security issues privately according to [SECURITY.md](SECURITY.md), and read [DISCLAIMER.md](DISCLAIMER.md) before using driver writes.
+## Project
 
-## Contributing
+[Interfaces](INTERFACES.md) · [Charging research](REVERSE_ENGINEERING.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Disclaimer](DISCLAIMER.md)
 
-Contributions and compatibility reports are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request. Do not upload Lenovo private binaries, firmware images, or personal diagnostic data.
-
-## License
-
-EnergyControl for Lenovo is licensed under `GPL-3.0-only`. See [LICENSE](LICENSE).
-
-“Lenovo” is used only to describe compatibility. All product names and trademarks belong to their respective owners.
+Licensed under [GPL-3.0-only](LICENSE). Lenovo is referenced solely to describe compatibility. This project is not affiliated with or endorsed by Lenovo.

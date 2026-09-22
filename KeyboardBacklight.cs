@@ -268,8 +268,7 @@ namespace LenovoSettingsCompat
             state.AutoDimStatus = Read(state.Settings, "KeyboardBacklightAutoDimStatus");
             state.Timeout = Read(state.Settings, "KeyboardBacklightTimeOut");
             state.CanAutoDim = state.CanAutoDim &&
-                !String.Equals(state.AutoDimCapability, "False", StringComparison.OrdinalIgnoreCase) &&
-                !String.Equals(state.AutoDimCapability, "NoCapability", StringComparison.OrdinalIgnoreCase);
+                String.Equals(state.AutoDimCapability, "True", StringComparison.OrdinalIgnoreCase);
             if (!state.IsSupported && String.IsNullOrWhiteSpace(state.Error))
                 state.Error = "设备未报告键盘背光能力。";
             return state;
