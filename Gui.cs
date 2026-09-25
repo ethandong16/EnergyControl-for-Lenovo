@@ -37,7 +37,6 @@ namespace LenovoSettingsGui
         private readonly Button refreshButton = new Button();
         private readonly Button aboutButton = new Button();
         private readonly Button helpButton = new Button();
-        private readonly Button diagnosticsButton = new Button();
         private EventHandler initialRefreshHandler;
         private bool busy;
         private bool geekOptionGrey;

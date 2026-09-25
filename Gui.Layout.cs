@@ -48,7 +48,7 @@ namespace LenovoSettingsGui
                 ? Color.FromArgb(0, 95, 78) : Color.FromArgb(237, 246, 244);
             button.BackColor = primary ? Color.FromArgb(0, 110, 90) : Color.White;
             button.ForeColor = primary ? Color.White : Color.FromArgb(55, 65, 81);
-            button.Cursor = Cursors.Hand;
+            // Inherit the system cursor; .NET Framework's Hand ignores user cursor sizing.
         }
 
         private void BuildLayout()
@@ -76,22 +76,20 @@ namespace LenovoSettingsGui
                 Anchor = AnchorStyles.Left | AnchorStyles.Right
             };
             header.Controls.Add(brand, 0, 0);
-            var toolbar = AutoTable(4);
+            var toolbar = AutoTable(3);
             toolbar.RowStyles.Add(new RowStyle(SizeType.AutoSize));
-            for (int index = 0; index < 4; index++)
+            for (int index = 0; index < 3; index++)
                 toolbar.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
             toolbar.Margin = new Padding(0, 0, 0, 14);
             StyleButton(refreshButton, UiText.Get("刷新"), true);
-            StyleButton(diagnosticsButton, UiText.Get("诊断"), false);
             StyleButton(aboutButton, UiText.Get("关于"), false);
             StyleButton(helpButton, UiText.Get("帮助"), false);
-            foreach (Button button in new[] { refreshButton, diagnosticsButton, helpButton, aboutButton })
+            foreach (Button button in new[] { refreshButton, helpButton, aboutButton })
                 button.Margin = new Padding(0, 0, 8, 0);
             refreshButton.Click += async delegate { await RefreshStateAsync(); };
-            diagnosticsButton.Click += delegate { ShowDiagnostics(); };
             aboutButton.Click += delegate { ShowAbout(); };
             helpButton.Click += delegate { ShowHelp(); };
-            toolbar.Controls.AddRange(new Control[] { refreshButton, diagnosticsButton, helpButton, aboutButton });
+            toolbar.Controls.AddRange(new Control[] { refreshButton, helpButton, aboutButton });
             header.Controls.Add(toolbar, 0, 1);
             shell.Controls.Add(header, 0, 0);
 
